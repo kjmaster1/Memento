@@ -1,0 +1,10 @@
+{
+  "stat": "memento:blocks_broken",
+  "value": 10,
+  "title": {
+    "text": "Novice Pickaxe",
+    "color": "aqua",
+    "italic": true
+  },
+  "sound": "minecraft:entity.player.levelup"
+}

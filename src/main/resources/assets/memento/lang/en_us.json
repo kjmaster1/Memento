@@ -1,0 +1,10 @@
+{
+  "tooltip.memento.header": "--- Memento History ---",
+  "tooltip.memento.hold_shift": "Hold [Shift] for History",
+  "tooltip.memento.created_by": "Created by %s on Day %s",
+  "memento.toast.levelup": "Item Level Up!",
+
+  "stat.memento.blocks_broken": "Blocks Excavated",
+  "stat.memento.entities_killed": "Bloodshed",
+  "stat.memento.distance_flown": "Distance Flown (m)"
+}

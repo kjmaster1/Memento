@@ -1,0 +1,10 @@
+{
+  "stat": "memento:damage_taken",
+  "value": 2000,
+  "title": {
+    "text": "Calloused Boots",
+    "color": "red",
+    "bold": true
+  },
+  "sound": "minecraft:item.armor.equip_iron"
+}
