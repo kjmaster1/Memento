@@ -2,9 +2,9 @@ package com.kjmaster.memento.event;
 
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModStats;
+import com.kjmaster.memento.util.ItemContextHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CocoaBlock;
@@ -23,8 +23,7 @@ public class CultivationEvents {
             ItemStack heldItem = player.getMainHandItem();
             BlockState state = event.getState();
 
-            // 1. Check if holding a Hoe
-            if (!heldItem.is(ItemTags.HOES)) {
+            if (!ItemContextHelper.isHoe(heldItem)) {
                 return;
             }
 

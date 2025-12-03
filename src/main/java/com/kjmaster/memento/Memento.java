@@ -2,6 +2,7 @@ package com.kjmaster.memento;
 
 import com.kjmaster.memento.event.*;
 import com.kjmaster.memento.milestone.MilestoneManager;
+import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
@@ -26,13 +27,15 @@ public class Memento {
         // 1. Register Data Components (Mod Bus)
         ModDataComponents.COMPONENTS.register(modEventBus);
 
+        ModDataAttachments.ATTACHMENT_TYPES.register(modEventBus);
+
         // 2. Register Game Logic Events (Game Bus)
-        // These are the "server-side" events like BlockBreak
-        NeoForge.EVENT_BUS.register(MementoEvents.class);
+
         NeoForge.EVENT_BUS.register(MetadataEvents.class);
         NeoForge.EVENT_BUS.register(AviationEvents.class);
-        NeoForge.EVENT_BUS.register(TankEvents.class);
         NeoForge.EVENT_BUS.register(CultivationEvents.class);
+
+        NeoForge.EVENT_BUS.register(ContextEvents.class);
 
         if (FMLEnvironment.dist.isClient()) {
             NeoForge.EVENT_BUS.register(MementoClientEvents.class);

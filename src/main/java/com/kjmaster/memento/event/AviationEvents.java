@@ -2,6 +2,7 @@ package com.kjmaster.memento.event;
 
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModStats;
+import com.kjmaster.memento.util.ItemContextHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -38,8 +39,7 @@ public class AviationEvents {
         if (difference > 0) {
             ItemStack chestItem = player.getItemBySlot(EquipmentSlot.CHEST);
 
-            // Use canElytraFly check for mod compatibility
-            if (chestItem.canElytraFly(player)) {
+            if (ItemContextHelper.isElytra(chestItem, player)) {
                 MementoAPI.incrementStat(player, chestItem, ModStats.DISTANCE_FLOWN, difference);
             }
         }
