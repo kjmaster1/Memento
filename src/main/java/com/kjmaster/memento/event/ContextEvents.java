@@ -1,5 +1,6 @@
 package com.kjmaster.memento.event;
 
+import com.kjmaster.memento.Config;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModStats;
@@ -21,14 +22,12 @@ import net.neoforged.neoforge.event.entity.player.ItemFishedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
-import static com.kjmaster.memento.registry.ModStats.BLOCKS_BROKEN;
-import static com.kjmaster.memento.registry.ModStats.ENTITIES_KILLED;
-
 public class ContextEvents {
 
     // --- Shields: Damage Blocked ---
     @SubscribeEvent
     public static void onShieldBlock(LivingShieldBlockEvent event) {
+        if (!Config.isDefaultEnabled(ModStats.DAMAGE_BLOCKED)) return;
         if (event.getEntity() instanceof ServerPlayer player) {
             ItemStack useItem = player.getUseItem();
             if (ItemContextHelper.isShield(useItem)) {
@@ -46,7 +45,11 @@ public class ContextEvents {
         if (event.getEntity() instanceof Projectile projectile && !event.getLevel().isClientSide) {
             if (projectile.getOwner() instanceof ServerPlayer player) {
                 // Attach Origin Data for Longest Shot calculation later
-                projectile.setData(ModDataAttachments.PROJECTILE_ORIGIN, projectile.position());
+                if (Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) {
+                    projectile.setData(ModDataAttachments.PROJECTILE_ORIGIN, projectile.position());
+                }
+
+                if (!Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) return;
 
                 // Increment "Shots Fired" on the active item
                 ItemStack activeItem = player.getUseItem();
@@ -62,6 +65,9 @@ public class ContextEvents {
 
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) return;
+
         Projectile projectile = event.getProjectile();
         if (!projectile.level().isClientSide && projectile.getOwner() instanceof ServerPlayer player) {
             // Calculate Distance
@@ -71,45 +77,24 @@ public class ContextEvents {
             double distance = origin.distanceTo(projectile.position());
             long distanceCm = (long) (distance * 100);
 
-            // Heuristic: Try to find the weapon in the player's hands that fired this.
-            // (We cannot know for 100% certainty which item fired it if they have two of the same bow,
-            // but checking the held item is the standard modded approach).
             ItemStack held = player.getMainHandItem();
             if (ItemContextHelper.isRangedWeapon(held)) {
-                updateLongestShot(player, held, distanceCm);
+                MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
             } else {
                 held = player.getOffhandItem();
                 if (ItemContextHelper.isRangedWeapon(held)) {
-                    updateLongestShot(player, held, distanceCm);
+                    MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
                 }
             }
-        }
-    }
-
-    private static void updateLongestShot(ServerPlayer player, ItemStack stack, long distanceCm) {
-        // Only update if the new distance is greater than the stored one
-        // MementoAPI.incrementStat adds to the value, so we need to read directly first.
-        // However, MementoAPI is designed for 'increment'. We might need a 'max' function or logic here.
-        // For simplicity with current API: We read the TrackerMap manually.
-
-        // Note: Ideally MementoAPI would expose a 'setStatIfMax' method.
-        // Using incrementStat for "Longest Shot" would sum distances, which is wrong.
-        // For this specific stat, we will use a custom logic using the API's public methods if possible,
-        // or just accept we need to extend MementoAPI or access the component directly.
-
-        // Assuming we update MementoAPI later, or do this:
-        com.kjmaster.memento.component.TrackerMap map = stack.getOrDefault(com.kjmaster.memento.registry.ModDataComponents.TRACKER_MAP, com.kjmaster.memento.component.TrackerMap.EMPTY);
-        long currentRecord = map.getValue(ModStats.LONGEST_SHOT);
-
-        if (distanceCm > currentRecord) {
-            long diff = distanceCm - currentRecord;
-            MementoAPI.incrementStat(player, stack, ModStats.LONGEST_SHOT, diff);
         }
     }
 
     // --- Fishing Rods: Fish Caught ---
     @SubscribeEvent
     public static void onItemFished(ItemFishedEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.ITEMS_CAUGHT)) return;
+
         if (event.getEntity() instanceof ServerPlayer player) {
             ItemStack stack = player.getMainHandItem();
             if (ItemContextHelper.isFishingRod(stack)) {
@@ -128,6 +113,9 @@ public class ContextEvents {
     // --- Flint & Steel: Fires Started ---
     @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.FIRES_STARTED)) return;
+
         if (event.getEntity() instanceof ServerPlayer player && event.getPlacedBlock().getBlock() instanceof BaseFireBlock) {
             // Check if placed via an item
             ItemStack usedItem = player.getMainHandItem();
@@ -145,6 +133,9 @@ public class ContextEvents {
     // --- Shears: Wool Clipped ---
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+
+        if (!Config.isDefaultEnabled(ModStats.MOBS_SHEARED)) return;
+
         if (event.getEntity() instanceof ServerPlayer player) {
             ItemStack stack = event.getItemStack();
             if (ItemContextHelper.isShears(stack)) {
@@ -163,6 +154,9 @@ public class ContextEvents {
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.BLOCKS_BROKEN)) return;
+
         if (event.getPlayer() instanceof ServerPlayer player) {
             ItemStack heldItem = player.getMainHandItem();
             BlockState state = event.getState();
@@ -175,6 +169,9 @@ public class ContextEvents {
 
     @SubscribeEvent
     public static void onLivingDeath(LivingDeathEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.ENTITIES_KILLED)) return;
+
         if (event.getSource().getEntity() instanceof ServerPlayer player) {
 
             ItemStack weapon = event.getSource().getWeaponItem();
@@ -191,6 +188,9 @@ public class ContextEvents {
 
     @SubscribeEvent
     public static void onLivingDamage(LivingDamageEvent.Post event) {
+
+        if (!Config.isDefaultEnabled(ModStats.DAMAGE_TAKEN)) return;
+
         if (event.getEntity() instanceof ServerPlayer player) {
             float damageAmount = event.getNewDamage();
             long scaledDamage = (long) (damageAmount * 100);

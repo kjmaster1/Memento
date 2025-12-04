@@ -1,0 +1,6 @@
+{
+  "type": "decimal",
+  "factor": 0.01,
+  "suffix": " HP",
+  "color": "red"
+}

@@ -1,7 +1,8 @@
 package com.kjmaster.memento.registry;
 
-import com.kjmaster.memento.Memento;
 import net.minecraft.resources.ResourceLocation;
+
+import static com.kjmaster.memento.Memento.loc;
 
 public class ModStats {
     public static final ResourceLocation BLOCKS_BROKEN = loc("blocks_broken");
@@ -17,7 +18,4 @@ public class ModStats {
     public static final ResourceLocation FIRES_STARTED = loc("fires_started");
     public static final ResourceLocation MOBS_SHEARED = loc("mobs_sheared");
 
-    private static ResourceLocation loc(String path) {
-        return ResourceLocation.fromNamespaceAndPath(Memento.MODID, path);
-    }
 }

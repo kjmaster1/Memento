@@ -1,4 +1,4 @@
-package com.kjmaster.memento.milestone;
+package com.kjmaster.memento.data;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -13,13 +13,13 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-public class MilestoneManager extends SimpleJsonResourceReloadListener {
+public class StatMilestoneManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     // Map of Stat ID -> List of Milestones for that stat
-    private static final Map<ResourceLocation, List<Milestone>> MILESTONES = new HashMap<>();
+    private static final Map<ResourceLocation, List<StatMilestone>> MILESTONES = new HashMap<>();
 
-    public MilestoneManager() {
+    public StatMilestoneManager() {
         super(GSON, "milestones");
     }
 
@@ -31,7 +31,7 @@ public class MilestoneManager extends SimpleJsonResourceReloadListener {
             ResourceLocation id = entry.getKey();
             JsonElement json = entry.getValue();
 
-            Milestone.CODEC.parse(JsonOps.INSTANCE, json)
+            StatMilestone.CODEC.parse(JsonOps.INSTANCE, json)
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse milestone {}: {}", id, err))
                     .ifPresent(milestone -> {
                         MILESTONES.computeIfAbsent(milestone.statId(), k -> new ArrayList<>()).add(milestone);
@@ -40,7 +40,7 @@ public class MilestoneManager extends SimpleJsonResourceReloadListener {
         Memento.LOGGER.info("Loaded {} milestones", MILESTONES.values().stream().mapToInt(List::size).sum());
     }
 
-    public static List<Milestone> getMilestonesFor(ResourceLocation statId) {
+    public static List<StatMilestone> getMilestonesFor(ResourceLocation statId) {
         return MILESTONES.getOrDefault(statId, Collections.emptyList());
     }
 }

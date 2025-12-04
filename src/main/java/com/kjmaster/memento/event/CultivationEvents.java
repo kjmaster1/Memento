@@ -1,5 +1,6 @@
 package com.kjmaster.memento.event;
 
+import com.kjmaster.memento.Config;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModStats;
 import com.kjmaster.memento.util.ItemContextHelper;
@@ -15,10 +16,15 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
+import java.util.Collections;
+
 public class CultivationEvents {
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
+
+        if (!Config.isDefaultEnabled(ModStats.CROPS_HARVESTED)) return;
+
         if (event.getPlayer() instanceof ServerPlayer player) {
             ItemStack heldItem = player.getMainHandItem();
             BlockState state = event.getState();
@@ -48,6 +54,9 @@ public class CultivationEvents {
     private static boolean isFullyGrown(BlockState state) {
         if (state.getBlock() instanceof CropBlock crop) {
             return crop.isMaxAge(state);
+        }
+        if (state.hasProperty(CropBlock.AGE)) {
+            return state.getValue(CropBlock.AGE).equals(Collections.max(CropBlock.AGE.getPossibleValues()));
         }
         if (state.getBlock() instanceof NetherWartBlock) {
             return state.getValue(NetherWartBlock.AGE) >= 3;

@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public record TrackerMap(Map<ResourceLocation, Long> stats) {
     public static final TrackerMap EMPTY = new TrackerMap(Map.of());
@@ -30,9 +31,15 @@ public record TrackerMap(Map<ResourceLocation, Long> stats) {
         return stats.getOrDefault(trackerId, 0L);
     }
 
-    public TrackerMap increment(ResourceLocation trackerId, long amount) {
+    /**
+     * Updates a stat using the provided merge function.
+     * @param trackerId The stat to update.
+     * @param value The new value to merge in.
+     * @param remappingFunction Function to merge (Old, New) -> Result. Ex: Long::sum or Math::max.
+     */
+    public TrackerMap update(ResourceLocation trackerId, long value, BiFunction<Long, Long, Long> remappingFunction) {
         Map<ResourceLocation, Long> newStats = new HashMap<>(this.stats);
-        newStats.merge(trackerId, amount, Long::sum);
+        newStats.merge(trackerId, value, remappingFunction);
         return new TrackerMap(newStats);
     }
 }

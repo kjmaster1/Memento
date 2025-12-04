@@ -1,16 +1,21 @@
 package com.kjmaster.memento.event;
 
+import com.kjmaster.memento.client.StatDefinition;
+import com.kjmaster.memento.client.StatDefinitionManager;
+import com.kjmaster.memento.client.tooltip.StatBarComponent;
 import com.kjmaster.memento.component.ItemMetadata;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.registry.ModDataComponents;
-import com.kjmaster.memento.registry.ModStats;
+import com.mojang.datafixers.util.Either;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.event.RenderTooltipEvent;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 
@@ -18,17 +23,15 @@ public class MementoClientEvents {
 
     @SubscribeEvent
     public static void onTooltip(ItemTooltipEvent event) {
-
-        // 1. Check if the item has TrackerMap component or ItemMetadata component
         if (!event.getItemStack().has(ModDataComponents.TRACKER_MAP) && !event.getItemStack().has(ModDataComponents.ITEM_METADATA)) {
             return;
         }
 
-        // 2. logic for "Hold Shift" vs "Show Stats"
         if (Screen.hasShiftDown()) {
             event.getToolTip().add(Component.translatable("tooltip.memento.header")
                     .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
 
+            // Metadata Section
             if (event.getItemStack().has(ModDataComponents.ITEM_METADATA)) {
                 ItemMetadata meta = event.getItemStack().get(ModDataComponents.ITEM_METADATA);
                 if (meta != null && !meta.creatorName().isEmpty()) {
@@ -37,22 +40,30 @@ public class MementoClientEvents {
                 }
             }
 
+            // Stats Section (TEXT ONLY)
             TrackerMap trackers = event.getItemStack().get(ModDataComponents.TRACKER_MAP);
-            if (trackers == null || trackers.stats().isEmpty()) {
-                return;
-            }
+            if (trackers == null || trackers.stats().isEmpty()) return;
 
-            // 3. Iterate over the stats map and display them
             for (Map.Entry<ResourceLocation, Long> entry : trackers.stats().entrySet()) {
                 ResourceLocation statId = entry.getKey();
-                Long value = entry.getValue();
+                Long rawValue = entry.getValue();
+
+                StatDefinition def = StatDefinitionManager.get(statId);
+
+                // SKIPPING BAR MODE: We handle bars in the GatherComponents event
+                if (def.displayMode().orElse("text").equals("bar")) {
+                    continue;
+                }
+
+                String valueString = getValueString(rawValue, def);
+
                 String translationKey = "stat." + statId.getNamespace() + "." + statId.getPath();
-                String valueString = getValueString(statId, value);
+                ChatFormatting valueColor = def.color().orElse(ChatFormatting.WHITE);
 
                 MutableComponent line = Component.translatable(translationKey)
                         .withStyle(ChatFormatting.GRAY)
                         .append(Component.literal(": "))
-                        .append(Component.literal(valueString).withStyle(ChatFormatting.WHITE));
+                        .append(Component.literal(valueString).withStyle(valueColor));
 
                 event.getToolTip().add(line);
             }
@@ -62,20 +73,50 @@ public class MementoClientEvents {
         }
     }
 
-    private static String getValueString(ResourceLocation statId, Long value) {
+    private static @NotNull String getValueString(Long rawValue, StatDefinition def) {
+        double processedValue = rawValue * def.factor().orElse(1.0);
         String valueString;
-
-        if (statId.equals(ModStats.DISTANCE_FLOWN)) {
-            double meters = value / 100.0;
-            // Format to 2 decimal places (e.g., "150.50m")
-            valueString = String.format("%.2fm", meters);
-        } else if (statId.equals(ModStats.DAMAGE_TAKEN)) {
-            // Convert scaled damage back to real health points
-            double damage = value / 100.0;
-            valueString = String.format("%.1f", damage);
+        String type = def.formatType().orElse("integer");
+        if (type.equals("decimal")) {
+            valueString = String.format("%.2f", processedValue);
         } else {
-            valueString = String.valueOf(value);
+            valueString = String.valueOf((long) processedValue);
+        }
+        if (def.suffix().isPresent()) {
+            valueString += def.suffix().get();
         }
         return valueString;
+    }
+
+    @SubscribeEvent
+    public static void onGatherTooltipComponents(RenderTooltipEvent.GatherComponents event) {
+        if (!Screen.hasShiftDown()) return;
+
+        if (!event.getItemStack().has(ModDataComponents.TRACKER_MAP)) return;
+
+        TrackerMap trackers = event.getItemStack().get(ModDataComponents.TRACKER_MAP);
+        if (trackers == null || trackers.stats().isEmpty()) return;
+
+        for (Map.Entry<ResourceLocation, Long> entry : trackers.stats().entrySet()) {
+            ResourceLocation statId = entry.getKey();
+            Long rawValue = entry.getValue();
+
+            StatDefinition def = StatDefinitionManager.get(statId);
+
+            // ONLY HANDLE BAR MODE
+            if (def.displayMode().orElse("text").equals("bar")) {
+                double max = def.maxValue().orElse(100.0);
+                // Apply factor if needed (e.g. converting cm to m before comparing to max)
+                double processedValue = rawValue * def.factor().orElse(1.0);
+
+                float progress = (float) (processedValue / max);
+
+                Integer colorVal = def.color().orElse(ChatFormatting.GREEN).getColor();
+                int finalColor = (colorVal != null) ? colorVal : 0x55FF55; // Default Green/White fallback
+
+                // Add the Bar Component
+                event.getTooltipElements().add(Either.right(new StatBarComponent(progress, finalColor)));
+            }
+        }
     }
 }
