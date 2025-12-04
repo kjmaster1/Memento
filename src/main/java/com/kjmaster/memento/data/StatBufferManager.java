@@ -17,6 +17,7 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 @EventBusSubscriber(modid = Memento.MODID)
 public class StatBufferManager {
@@ -48,14 +49,19 @@ public class StatBufferManager {
         Map<UUID, Map<ResourceLocation, Long>> pending = player.getData(ModDataAttachments.PENDING_STATS);
         if (pending.isEmpty()) return;
 
+        // Reuse the consumer to avoid allocation
+        Consumer<ItemStack> applyFunction = stack -> applyPending(player, stack, pending);
+
         // 1. Scan Inventory (Main, Armor, Offhand)
         Inventory inv = player.getInventory();
-        inv.items.forEach(stack -> applyPending(player, stack, pending));
-        inv.armor.forEach(stack -> applyPending(player, stack, pending));
-        inv.offhand.forEach(stack -> applyPending(player, stack, pending));
+        inv.items.forEach(applyFunction);
+        inv.armor.forEach(applyFunction);
+        inv.offhand.forEach(applyFunction);
 
-        // 2. Scan Curios (and any other worn items tracked by SlotHelper)
-        SlotHelper.getAllWornItems(player).forEach(context -> applyPending(player, context.stack(), pending));
+        // 2. Scan Curios
+        // OPTIMIZATION: Previously called SlotHelper.getAllWornItems(), which allocated a List
+        // AND re-scanned Armor/Offhand. Now we exclusively scan Curios slots.
+        SlotHelper.processCurios(player, (stack, slotIndex) -> applyFunction.accept(stack));
 
         // Note: Any stats remaining in 'pending' belong to items that are currently
         // not in the player's inventory (e.g. moved to a chest).

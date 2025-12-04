@@ -10,6 +10,8 @@ import top.theillusivec4.curios.api.CuriosApi;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class SlotHelper {
 
@@ -21,33 +23,49 @@ public class SlotHelper {
      */
     public record SlotContext(ItemStack stack, @Nullable EquipmentSlot slot) {}
 
-    public static List<SlotContext> getAllWornItems(LivingEntity entity) {
-        List<SlotContext> items = new ArrayList<>();
-
+    /**
+     * Iterates over all worn items (Vanilla Armor/Offhand + Curios) and applies the consumer.
+     * Optimized to avoid creating an ArrayList on every call.
+     */
+    public static void forEachWornItem(LivingEntity entity, Consumer<SlotContext> action) {
         // 1. Vanilla Slots
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = entity.getItemBySlot(slot);
             if (!stack.isEmpty()) {
-                items.add(new SlotContext(stack, slot));
+                action.accept(new SlotContext(stack, slot));
             }
         }
 
         // 2. Curios Slots
         if (CURIOS_LOADED) {
-            getCuriosItems(entity, items);
+            processCurios(entity, (stack, slotIndex) -> action.accept(new SlotContext(stack, null)));
         }
+    }
 
+    /**
+     * Legacy method retained for compatibility, but delegates to the optimized consumer.
+     * Prefer using forEachWornItem where possible to save memory.
+     */
+    public static List<SlotContext> getAllWornItems(LivingEntity entity) {
+        List<SlotContext> items = new ArrayList<>();
+        forEachWornItem(entity, items::add);
         return items;
     }
 
-    private static void getCuriosItems(LivingEntity entity, List<SlotContext> items) {
+    /**
+     * Iterates ONLY Curios slots.
+     * Useful when the caller has already iterated vanilla inventory and wants to avoid double-scanning.
+     */
+    public static void processCurios(LivingEntity entity, BiConsumer<ItemStack, Integer> action) {
+        if (!CURIOS_LOADED) return;
+
         CuriosApi.getCuriosInventory(entity).ifPresent(handler -> {
             IItemHandlerModifiable curiosHandler = handler.getEquippedCurios();
-            for (int i = 0; i < curiosHandler.getSlots(); i++) {
+            int slots = curiosHandler.getSlots();
+            for (int i = 0; i < slots; i++) {
                 ItemStack stack = curiosHandler.getStackInSlot(i);
                 if (!stack.isEmpty()) {
-                    // We pass null for the slot because Curios slots don't map to EquipmentSlot
-                    items.add(new SlotContext(stack, null));
+                    action.accept(stack, i);
                 }
             }
         });

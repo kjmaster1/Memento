@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import top.theillusivec4.curios.api.CuriosApi;
 
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CuriosCompat implements InventoryCompat {
@@ -13,15 +14,24 @@ public class CuriosCompat implements InventoryCompat {
     public boolean replaceItem(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
         AtomicBoolean found = new AtomicBoolean(false);
         try {
+            // Optimization: UUID is constant for the check, fetch it once.
+            final UUID targetUuid = oldStack.has(ModDataComponents.ITEM_UUID)
+                    ? oldStack.get(ModDataComponents.ITEM_UUID)
+                    : null;
+
             CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
                 var curiosHandler = handler.getEquippedCurios();
-                for (int i = 0; i < curiosHandler.getSlots(); i++) {
+                int slots = curiosHandler.getSlots(); // Cache slot count
+
+                for (int i = 0; i < slots; i++) {
                     ItemStack inSlot = curiosHandler.getStackInSlot(i);
+                    if (inSlot.isEmpty()) continue;
+
+                    boolean match = false;
 
                     // Check UUID
-                    boolean match = false;
-                    if (oldStack.has(ModDataComponents.ITEM_UUID) && inSlot.has(ModDataComponents.ITEM_UUID)) {
-                        if (oldStack.get(ModDataComponents.ITEM_UUID).equals(inSlot.get(ModDataComponents.ITEM_UUID))) {
+                    if (targetUuid != null && inSlot.has(ModDataComponents.ITEM_UUID)) {
+                        if (targetUuid.equals(inSlot.get(ModDataComponents.ITEM_UUID))) {
                             match = true;
                         }
                     }
@@ -33,6 +43,7 @@ public class CuriosCompat implements InventoryCompat {
                     if (match) {
                         curiosHandler.setStackInSlot(i, newStack);
                         found.set(true);
+                        // Break early once found
                         return;
                     }
                 }
