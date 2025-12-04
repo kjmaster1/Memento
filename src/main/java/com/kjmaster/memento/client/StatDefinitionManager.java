@@ -36,6 +36,7 @@ public class StatDefinitionManager extends SimpleJsonResourceReloadListener {
         Memento.LOGGER.info("Loaded {} stat definitions", DEFINITIONS.size());
 
         MementoClientEvents.clearCache();
+        ClientLoreEvents.clearCache();
     }
 
     public static StatDefinition get(ResourceLocation statId) {

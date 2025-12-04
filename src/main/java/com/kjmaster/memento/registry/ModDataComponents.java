@@ -1,9 +1,7 @@
 package com.kjmaster.memento.registry;
 
 import com.kjmaster.memento.Memento;
-import com.kjmaster.memento.component.ItemMetadata;
-import com.kjmaster.memento.component.TrackerMap;
-import com.kjmaster.memento.component.UnlockedMilestones;
+import com.kjmaster.memento.component.*;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
@@ -36,6 +34,16 @@ public class ModDataComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> ITEM_UUID = register("uuid", builder -> builder
             .persistent(UUIDUtil.CODEC)
             .networkSynchronized(UUIDUtil.STREAM_CODEC)
+    );
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<EchoCooldowns>> ECHO_COOLDOWNS = register("echo_cooldowns", builder -> builder
+            .persistent(EchoCooldowns.CODEC)
+            .networkSynchronized(EchoCooldowns.STREAM_CODEC)
+    );
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UnlockedSynergies>> UNLOCKED_SYNERGIES = register("unlocked_synergies", builder -> builder
+            .persistent(UnlockedSynergies.CODEC)
+            .networkSynchronized(UnlockedSynergies.STREAM_CODEC)
     );
 
     private static <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, UnaryOperator<DataComponentType.Builder<T>> builderOp) {

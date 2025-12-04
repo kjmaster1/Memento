@@ -1,5 +1,6 @@
 package com.kjmaster.memento;
 
+import com.kjmaster.memento.client.ClientLoreEvents;
 import com.kjmaster.memento.compat.CompatHandler;
 import com.kjmaster.memento.data.*;
 import com.kjmaster.memento.event.*;
@@ -52,11 +53,16 @@ public class Memento {
         NeoForge.EVENT_BUS.register(AviationEvents.class);
         NeoForge.EVENT_BUS.register(CultivationEvents.class);
         NeoForge.EVENT_BUS.register(RestrictionEvents.class);
+        NeoForge.EVENT_BUS.register(EchoEvents.class);
+        NeoForge.EVENT_BUS.register(TierEvents.class);
+        NeoForge.EVENT_BUS.register(SynergyEvents.class);
+        NeoForge.EVENT_BUS.register(DecayEvents.class);
 
         NeoForge.EVENT_BUS.register(ContextEvents.class);
 
         if (FMLEnvironment.dist.isClient()) {
             NeoForge.EVENT_BUS.register(MementoClientEvents.class);
+            NeoForge.EVENT_BUS.register(ClientLoreEvents.class);
         }
 
         NeoForge.EVENT_BUS.addListener(this::addReloadListener);
@@ -80,7 +86,12 @@ public class Memento {
                 new StatVisualPrestigeManager(),
                 new StatMasteryManager(),
                 new StatTransferFilterManager(),
-                new StatRequirementManager()
+                new StatRequirementManager(),
+                new StatLoreManager(),
+                new StatEchoManager(),
+                new StatTierManager(),
+                new StatSynergyManager(),
+                new StatDecayManager()
         ).forEach(event::addListener);
     }
 }
