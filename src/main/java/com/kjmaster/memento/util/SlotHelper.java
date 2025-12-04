@@ -26,11 +26,15 @@ public class SlotHelper {
     }
 
     /**
-     * Iterates over all worn items (Vanilla Armor/Offhand + Curios) and applies the consumer.
+     * Iterates over all worn items (Vanilla Armor/Offhand/Mainhand + Curios) and applies the consumer.
      * Optimized to avoid creating an ArrayList on every call.
+     * <p>
+     * Note: This inherently supports 1.20.5+ {@code DataComponents#EQUIPPABLE} items,
+     * as they must reside in a valid {@link EquipmentSlot} (e.g. Head, Offhand) to be effective.
      */
     public static void forEachWornItem(LivingEntity entity, Consumer<SlotContext> action) {
-        // 1. Vanilla Slots
+        // 1. Vanilla Slots (Armor, Hands, Body)
+        // This covers standard armor AND "Equipable" accessories that go in Head/Offhand/etc.
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = entity.getItemBySlot(slot);
             if (!stack.isEmpty()) {

@@ -26,9 +26,16 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 public class MilestoneEventHandler {
+
+    // Throttling to prevent audio/visual spam (e.g., vein mining triggers 50 milestones at once).
+    // Uses WeakHashMap to automatically clean up when entities/players despawn/disconnect.
+    private static final Map<LivingEntity, Long> LAST_FEEDBACK_TIME = new WeakHashMap<>();
+    private static final long FEEDBACK_COOLDOWN = 1000L; // 1 second between "dings"
 
     @SubscribeEvent
     public static void onStatChange(StatChangeEvent.Post event) {
@@ -79,7 +86,7 @@ public class MilestoneEventHandler {
     }
 
     private static MilestoneResult performMilestone(LivingEntity entity, ItemStack stack, StatMilestone milestone, String milestoneId, UnlockedMilestones currentUnlocked) {
-        // 1. Handle Transformation (Works for all Entities)
+        // 1. Handle Transformation (Works for all Entities) - ALWAYS happens, never throttled
         if (milestone.replacementItem().isPresent()) {
             ItemStack newStack = milestone.replacementItem().get().copy();
 
@@ -101,11 +108,21 @@ public class MilestoneEventHandler {
             stack = newStack;
         }
 
+        // --- Feedback Throttling Logic ---
+        boolean allowFeedback = false;
+        long now = System.currentTimeMillis();
+        long lastTime = LAST_FEEDBACK_TIME.getOrDefault(entity, 0L);
+
+        if (now - lastTime > FEEDBACK_COOLDOWN) {
+            allowFeedback = true;
+            LAST_FEEDBACK_TIME.put(entity, now);
+        }
+
         // --- Player Only Effects ---
         if (entity instanceof ServerPlayer player) {
 
             // 2. Visuals & Rewards
-            if (milestone.titleName().isPresent()) {
+            if (allowFeedback && milestone.titleName().isPresent()) {
                 stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
 
                 ItemStack visualStack = createVisualCopy(stack);
@@ -116,7 +133,7 @@ public class MilestoneEventHandler {
                 ));
             }
 
-            if (milestone.soundId().isPresent()) {
+            if (allowFeedback && milestone.soundId().isPresent()) {
                 ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
                 SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (sound != null) {
@@ -124,6 +141,7 @@ public class MilestoneEventHandler {
                 }
             }
 
+            // Commands are NEVER throttled (Gameplay critical)
             if (!milestone.rewards().isEmpty()) {
                 CommandSourceStack source = player.createCommandSourceStack().withPermission(2).withSuppressedOutput();
                 for (String command : milestone.rewards()) {
@@ -131,8 +149,8 @@ public class MilestoneEventHandler {
                 }
             }
         } else {
-            // For non-players, simple Sound support at location
-            if (milestone.soundId().isPresent()) {
+            // For non-players, simple Sound support at location (Throttled)
+            if (allowFeedback && milestone.soundId().isPresent()) {
                 ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
                 SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (sound != null) {
@@ -220,7 +238,6 @@ public class MilestoneEventHandler {
         return false;
     }
 
-    // ... createVisualCopy and copyComponent methods remain unchanged ...
     private static ItemStack createVisualCopy(ItemStack original) {
         ItemStack copy = new ItemStack(original.getItem());
 

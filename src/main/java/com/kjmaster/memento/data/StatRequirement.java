@@ -7,6 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Optional;
 
 public record StatRequirement(
@@ -15,7 +16,8 @@ public record StatRequirement(
         long min,                            // The minimum value
         RequirementScope scope,              // SELF (check this item) or INVENTORY (check if player has another item)
         Optional<ItemPredicate> sourceMatcher, // If INVENTORY scope, which item must have the stat?
-        Optional<String> failureMessage      // Translation key for error
+        Optional<String> failureMessage,      // Translation key for error
+        Optional<List<ResourceLocation>> optimizedItems // Explicit list of items for O(1) lookup
 ) {
     public enum RequirementScope implements StringRepresentable {
         SELF,
@@ -35,6 +37,7 @@ public record StatRequirement(
             Codec.LONG.fieldOf("min").forGetter(StatRequirement::min),
             RequirementScope.CODEC.optionalFieldOf("scope", RequirementScope.SELF).forGetter(StatRequirement::scope),
             ItemPredicate.CODEC.optionalFieldOf("source_matcher").forGetter(StatRequirement::sourceMatcher),
-            Codec.STRING.optionalFieldOf("failure_message").forGetter(StatRequirement::failureMessage)
+            Codec.STRING.optionalFieldOf("failure_message").forGetter(StatRequirement::failureMessage),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("optimized_items").forGetter(StatRequirement::optimizedItems)
     ).apply(instance, StatRequirement::new));
 }

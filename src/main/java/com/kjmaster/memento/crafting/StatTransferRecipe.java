@@ -1,5 +1,6 @@
 package com.kjmaster.memento.crafting;
 
+import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.data.StatTransferFilterManager;
 import com.kjmaster.memento.item.MementoCrystalItem;
@@ -34,13 +35,13 @@ public class StatTransferRecipe implements CraftingRecipe {
             if (stack.isEmpty()) continue;
 
             if (stack.getItem() instanceof MementoCrystalItem) {
-                if (hasCrystal) return false; // Only 1 crystal allowed
+                if (hasCrystal) return false;
                 hasCrystal = true;
             } else if (stack.has(ModDataComponents.TRACKER_MAP) || stack.isDamageableItem()) {
-                if (hasTool) return false; // Only 1 tool allowed
+                if (hasTool) return false;
                 hasTool = true;
             } else {
-                return false; // Invalid extra item
+                return false;
             }
         }
         return hasCrystal && hasTool;
@@ -68,13 +69,14 @@ public class StatTransferRecipe implements CraftingRecipe {
             ItemStack resultCrystal = crystal.copy();
             Map<ResourceLocation, Long> filteredStats = new HashMap<>();
 
+            ItemStack finalTool = tool;
             toolStats.stats().forEach((stat, val) -> {
-                if (StatTransferFilterManager.isAllowed(tool, stat)) {
+                if (StatTransferFilterManager.isAllowed(finalTool, stat)) {
                     filteredStats.put(stat, val);
                 }
             });
 
-            if (filteredStats.isEmpty()) return ItemStack.EMPTY; // Nothing transferable
+            if (filteredStats.isEmpty()) return ItemStack.EMPTY;
 
             resultCrystal.set(ModDataComponents.TRACKER_MAP, new TrackerMap(filteredStats));
             return resultCrystal;
@@ -89,16 +91,11 @@ public class StatTransferRecipe implements CraftingRecipe {
                 if (!StatTransferFilterManager.isAllowed(resultTool, stat)) return ItemStack.EMPTY;
             }
 
-            // Merge logic
-            TrackerMap currentToolStats = resultTool.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
+            // Merge logic using Central API
+            resultTool.update(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY, currentMap ->
+                    MementoAPI.mergeStats(currentMap, crystalStats)
+            );
 
-            // We just add them directly.
-            // Note: Ideally we merge using existing strategies, but for transfer we assume simple addition or overwrite.
-            // Here we assume overwrite/addition.
-            Map<ResourceLocation, Long> merged = new HashMap<>(currentToolStats.stats());
-            crystalStats.stats().forEach((k, v) -> merged.merge(k, v, Long::sum));
-
-            resultTool.set(ModDataComponents.TRACKER_MAP, new TrackerMap(merged));
             return resultTool;
         }
 

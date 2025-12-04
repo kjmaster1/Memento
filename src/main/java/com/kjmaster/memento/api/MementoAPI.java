@@ -1,15 +1,22 @@
 package com.kjmaster.memento.api;
 
 import com.kjmaster.memento.api.event.StatChangeEvent;
+import com.kjmaster.memento.component.TrackerMap;
+import com.kjmaster.memento.data.StatBehavior;
+import com.kjmaster.memento.data.StatBehaviorManager;
 import com.kjmaster.memento.data.StatMastery;
 import com.kjmaster.memento.data.StatMasteryManager;
+import com.kjmaster.memento.network.StatUpdatePayload;
 import com.kjmaster.memento.registry.ModDataComponents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
@@ -97,6 +104,46 @@ public class MementoAPI {
                 RECURSION_GUARD.get().remove(key);
             }
         }
+    }
+
+    /**
+     * Sends a lightweight packet to update a single stat on the client.
+     * Useful for high-frequency updates (e.g., flight distance) where you want the visual feedback
+     * immediately, but defer the server-side persistence (and full component sync) to a Buffer Manager.
+     */
+    public static void sendPartialUpdate(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value) {
+        if (stack.isEmpty() || !stack.has(ModDataComponents.ITEM_UUID)) return;
+
+        PacketDistributor.sendToPlayer(player, new StatUpdatePayload(
+                stack.get(ModDataComponents.ITEM_UUID),
+                statId,
+                value
+        ));
+    }
+
+    /**
+     * Merges two TrackerMaps according to the registered StatBehaviors (SUM, MAX, MIN).
+     * @param base The original map (e.g., the item being kept).
+     * @param incoming The map being merged in (e.g., the item being sacrificed).
+     * @return A new TrackerMap containing the combined stats.
+     */
+    public static TrackerMap mergeStats(TrackerMap base, TrackerMap incoming) {
+        if (incoming.stats().isEmpty()) return base;
+
+        TrackerMap result = base;
+        for (Map.Entry<ResourceLocation, Long> entry : incoming.stats().entrySet()) {
+            ResourceLocation stat = entry.getKey();
+            long incomingValue = entry.getValue();
+
+            StatBehavior.MergeStrategy strategy = StatBehaviorManager.getStrategy(stat);
+
+            result = result.update(stat, incomingValue, (oldVal, newVal) -> switch (strategy) {
+                case MAX -> Math.max(oldVal, newVal);
+                case MIN -> (oldVal == 0) ? newVal : Math.min(oldVal, newVal);
+                case SUM -> oldVal + newVal;
+            });
+        }
+        return result;
     }
 
     public static long getStat(ItemStack stack, ResourceLocation statId) {

@@ -1,6 +1,7 @@
 {
   "tooltip.memento.header": "--- Memento History ---",
   "tooltip.memento.hold_shift": "Hold [Shift] for History",
+  "tooltip.memento.hold_ctrl_shift": "Hold [Ctrl+Shift] for All (+%s more)",
   "tooltip.memento.created_by": "Created by %s on Day %s",
   "memento.toast.levelup": "Item Level Up!",
   "stat.memento.blocks_broken": "Blocks Broken",

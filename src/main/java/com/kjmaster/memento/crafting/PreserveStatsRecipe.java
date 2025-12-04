@@ -1,10 +1,9 @@
 package com.kjmaster.memento.crafting;
 
+import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.component.ItemMetadata;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.component.UnlockedMilestones;
-import com.kjmaster.memento.data.StatBehavior;
-import com.kjmaster.memento.data.StatBehaviorManager;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModRecipes;
 import com.mojang.serialization.Codec;
@@ -14,15 +13,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public class PreserveStatsRecipe implements CraftingRecipe {
@@ -32,9 +28,6 @@ public class PreserveStatsRecipe implements CraftingRecipe {
         this.delegate = delegate;
     }
 
-    // --- Define the missing Codecs locally ---
-
-    // 1. Create a Codec that ensures the recipe is a CraftingRecipe
     private static final Codec<CraftingRecipe> CRAFTING_RECIPE_CODEC = Recipe.CODEC.flatXmap(
             recipe -> recipe instanceof CraftingRecipe craftingRecipe
                     ? DataResult.success(craftingRecipe)
@@ -42,15 +35,11 @@ public class PreserveStatsRecipe implements CraftingRecipe {
             DataResult::success
     );
 
-    // 2. Create a StreamCodec for networking
-    // We cast safely because we trust the server only sends valid CraftingRecipes for this type
     private static final StreamCodec<RegistryFriendlyByteBuf, CraftingRecipe> CRAFTING_RECIPE_STREAM_CODEC =
             Recipe.STREAM_CODEC.map(
                     recipe -> (CraftingRecipe) recipe,
                     recipe -> (Recipe<?>) recipe
             ).cast();
-
-    // ------------------------------------------
 
     @Override
     public boolean matches(@NotNull CraftingInput input, @NotNull Level level) {
@@ -61,31 +50,19 @@ public class PreserveStatsRecipe implements CraftingRecipe {
     public @NotNull ItemStack assemble(@NotNull CraftingInput input, HolderLookup.@NotNull Provider registries) {
         ItemStack result = delegate.assemble(input, registries);
 
-        // Mutable containers for merging
-        Map<ResourceLocation, Long> mergedStats = new HashMap<>();
+        // Mutable containers/accumulators
+        TrackerMap accumulatedStats = TrackerMap.EMPTY;
         Set<String> mergedMilestones = new HashSet<>();
         ItemMetadata primaryMeta = null;
 
         for (int i = 0; i < input.size(); i++) {
             ItemStack ingredient = input.getItem(i);
 
-            // 1. Merge Stats
+            // 1. Merge Stats using API
             if (ingredient.has(ModDataComponents.TRACKER_MAP)) {
                 TrackerMap map = ingredient.get(ModDataComponents.TRACKER_MAP);
                 if (map != null) {
-                    for (Map.Entry<ResourceLocation, Long> entry : map.stats().entrySet()) {
-                        ResourceLocation stat = entry.getKey();
-                        long value = entry.getValue();
-
-                        mergedStats.merge(stat, value, (oldVal, newVal) -> {
-                            StatBehavior.MergeStrategy strategy = StatBehaviorManager.getStrategy(stat);
-                            return switch (strategy) {
-                                case MAX -> Math.max(oldVal, newVal);
-                                case MIN -> Math.min(oldVal, newVal);
-                                case SUM -> oldVal + newVal;
-                            };
-                        });
-                    }
+                    accumulatedStats = MementoAPI.mergeStats(accumulatedStats, map);
                 }
             }
 
@@ -104,8 +81,8 @@ public class PreserveStatsRecipe implements CraftingRecipe {
         }
 
         // Apply merged data to result
-        if (!mergedStats.isEmpty()) {
-            result.set(ModDataComponents.TRACKER_MAP, new TrackerMap(mergedStats));
+        if (!accumulatedStats.stats().isEmpty()) {
+            result.set(ModDataComponents.TRACKER_MAP, accumulatedStats);
         }
 
         if (!mergedMilestones.isEmpty()) {

@@ -20,6 +20,7 @@ import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -63,8 +64,26 @@ public class MementoClientEvents {
 
             try {
                 // Use cache to avoid heavy string formatting and map lookups every frame
-                List<MutableComponent> lines = TOOLTIP_CACHE.get(trackers, () -> computeStatLines(trackers));
-                event.getToolTip().addAll(lines);
+                List<MutableComponent> allLines = TOOLTIP_CACHE.get(trackers, () -> computeStatLines(trackers));
+
+                // PAGINATION LOGIC
+                // Ctrl+Shift = Show All
+                // Shift = Show Top 5
+                if (Screen.hasControlDown()) {
+                    event.getToolTip().addAll(allLines);
+                } else {
+                    int limit = 5;
+                    // Show top N
+                    event.getToolTip().addAll(allLines.subList(0, Math.min(allLines.size(), limit)));
+
+                    // Show Hint if truncated
+                    if (allLines.size() > limit) {
+                        int remaining = allLines.size() - limit;
+                        event.getToolTip().add(Component.translatable("tooltip.memento.hold_ctrl_shift", remaining)
+                                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+                    }
+                }
+
             } catch (ExecutionException e) {
                 // Fallback in case of cache error
                 event.getToolTip().addAll(computeStatLines(trackers));
@@ -79,7 +98,11 @@ public class MementoClientEvents {
     private static List<MutableComponent> computeStatLines(TrackerMap trackers) {
         List<MutableComponent> lines = new ArrayList<>();
 
-        for (Map.Entry<ResourceLocation, Long> entry : trackers.stats().entrySet()) {
+        // 1. Sort stats by Value (Descending) to ensure "Top 5" are actually the biggest ones
+        List<Map.Entry<ResourceLocation, Long>> sortedEntries = new ArrayList<>(trackers.stats().entrySet());
+        sortedEntries.sort(Map.Entry.<ResourceLocation, Long>comparingByValue().reversed());
+
+        for (Map.Entry<ResourceLocation, Long> entry : sortedEntries) {
             ResourceLocation statId = entry.getKey();
             Long rawValue = entry.getValue();
 

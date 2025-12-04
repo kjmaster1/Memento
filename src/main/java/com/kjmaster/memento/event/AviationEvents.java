@@ -1,6 +1,7 @@
 package com.kjmaster.memento.event;
 
 import com.kjmaster.memento.Config;
+import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.data.StatBufferManager;
 import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModStats;
@@ -34,7 +35,7 @@ public class AviationEvents {
         if (currentStat > previousStat) {
             int difference = currentStat - previousStat;
 
-            // PERFORMANCE: Throttle updates.
+            // PERFORMANCE: Throttle updates to prevent spamming packets for tiny movements
             if (difference < UPDATE_THRESHOLD) {
                 return;
             }
@@ -42,14 +43,18 @@ public class AviationEvents {
             // Only count if the player is actually wearing an Elytra
             ItemStack chestItem = player.getItemBySlot(EquipmentSlot.CHEST);
             if (ItemContextHelper.isElytra(chestItem, player)) {
-                // OPTIMIZATION: Use Buffer Manager instead of direct API call
-                // This prevents re-creating the Data Component map on every meter flown.
+                // 1. SERVER: Buffer the stat to save to NBT later (Performance)
                 StatBufferManager.bufferStat(player, chestItem, ModStats.DISTANCE_FLOWN, difference);
+
+                // 2. CLIENT: Stream the "Delta" immediately so the tooltip updates smoothly (Visuals)
+                // We send 'difference' because the client handler will ADD it to the local total.
+                MementoAPI.sendPartialUpdate(player, chestItem, ModStats.DISTANCE_FLOWN, difference);
             }
 
             // Update the attachment with the new current value
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
         } else if (currentStat < previousStat) {
+            // Handle stat reset/overflow edge cases
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
         }
     }

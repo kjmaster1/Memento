@@ -9,22 +9,24 @@ import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.util.SlotHelper;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final List<StatRequirement> RULES = new ArrayList<>();
+
+    // Split rules into O(1) indexed rules and O(N) global rules
+    private static final List<StatRequirement> GLOBAL_RULES = new ArrayList<>();
+    private static final Map<Item, List<StatRequirement>> INDEXED_RULES = new HashMap<>();
 
     public StatRequirementManager() {
         super(GSON, "stat_requirements");
@@ -32,13 +34,30 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
 
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> object, @NotNull ResourceManager resourceManager, @NotNull ProfilerFiller profiler) {
-        RULES.clear();
+        GLOBAL_RULES.clear();
+        INDEXED_RULES.clear();
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
             StatRequirement.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse restriction rule {}: {}", entry.getKey(), err))
-                    .ifPresent(RULES::add);
+                    .ifPresent(rule -> {
+                        // If optimization is requested, index it
+                        if (rule.optimizedItems().isPresent() && !rule.optimizedItems().get().isEmpty()) {
+                            for (ResourceLocation itemId : rule.optimizedItems().get()) {
+                                Item item = BuiltInRegistries.ITEM.get(itemId);
+                                INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
+                            }
+                        } else {
+                            // Fallback to global scan
+                            GLOBAL_RULES.add(rule);
+                        }
+                    });
         }
-        Memento.LOGGER.info("Loaded {} usage restrictions", RULES.size());
+        Memento.LOGGER.info("Loaded {} usage restrictions ({} global, {} indexed)",
+                GLOBAL_RULES.size() + INDEXED_RULES.values().stream().mapToInt(List::size).sum(),
+                GLOBAL_RULES.size(),
+                INDEXED_RULES.size()
+        );
     }
 
     /**
@@ -48,16 +67,33 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     public static Optional<String> checkRestriction(Player player, ItemStack stack) {
         if (stack.isEmpty()) return Optional.empty();
 
-        for (StatRequirement rule : RULES) {
+        // 1. Check Indexed Rules (O(1)) - Highly efficient
+        List<StatRequirement> indexed = INDEXED_RULES.get(stack.getItem());
+        if (indexed != null) {
+            Optional<String> result = checkRules(player, stack, indexed);
+            if (result.isPresent()) return result;
+        }
+
+        // 2. Check Global Rules (O(N)) - Only iterate if absolutely necessary
+        if (!GLOBAL_RULES.isEmpty()) {
+            return checkRules(player, stack, GLOBAL_RULES);
+        }
+
+        return Optional.empty();
+    }
+
+    private static Optional<String> checkRules(Player player, ItemStack stack, List<StatRequirement> rules) {
+        for (StatRequirement rule : rules) {
+            // Predicate check matches the item to the rule
             if (rule.restrictedItem().test(stack)) {
                 boolean passed = false;
 
                 if (rule.scope() == StatRequirement.RequirementScope.SELF) {
-                    // Check the item itself
+                    // Check the item itself (Fast)
                     long val = MementoAPI.getStat(stack, rule.stat());
                     if (val >= rule.min()) passed = true;
                 } else {
-                    // Check inventory for a source item
+                    // Check inventory for a source item (Slower, but only runs if rule matches)
                     passed = checkInventory(player, rule);
                 }
 
@@ -75,8 +111,6 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
             if (checkSourceItem(item, rule)) return true;
         }
         // Scan armor/offhand/curios via SlotHelper
-        // Note: SlotHelper might overlap with main inventory depending on implementation, but it's safe.
-        // We use a simple atomic flag to break early.
         final boolean[] found = {false};
         SlotHelper.forEachWornItem(player, ctx -> {
             if (!found[0] && checkSourceItem(ctx.stack(), rule)) {
@@ -95,7 +129,6 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
         }
 
         // Must have the stat
-        // Optimization: Direct component check avoids API recursion if we were calling from API (we aren't here)
         if (!stack.has(ModDataComponents.TRACKER_MAP)) return false;
 
         TrackerMap map = stack.get(ModDataComponents.TRACKER_MAP);
