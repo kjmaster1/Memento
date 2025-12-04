@@ -3,8 +3,12 @@
   "tooltip.memento.hold_shift": "Hold [Shift] for History",
   "tooltip.memento.created_by": "Created by %s on Day %s",
   "memento.toast.levelup": "Item Level Up!",
-
-  "stat.memento.blocks_broken": "Blocks Excavated",
-  "stat.memento.entities_killed": "Bloodshed",
-  "stat.memento.distance_flown": "Distance Flown (m)"
+  "stat.memento.blocks_broken": "Blocks Broken",
+  "stat.memento.entities_killed": "Entities Killed",
+  "stat.memento.distance_flown": "Distance Flown (m)",
+  "item.memento.memento_crystal": "Memento Crystal",
+  "item.memento.memento_crystal.empty": "Empty (Combine with Tool to Siphon)",
+  "item.memento.memento_crystal.stored": "Contains Memories:",
+  "jei.memento.milestone.title": "Memento Milestones",
+  "jei.memento.effect.title": "Memento Stat Effects"
 }

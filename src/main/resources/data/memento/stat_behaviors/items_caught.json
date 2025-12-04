@@ -1,1 +1,4 @@
-{ "stat": "memento:items_caught", "merge_strategy": "sum" }
+{
+  "stat": "memento:items_caught",
+  "merge_strategy": "sum"
+}

@@ -33,8 +33,9 @@ public record TrackerMap(Map<ResourceLocation, Long> stats) {
 
     /**
      * Updates a stat using the provided merge function.
-     * @param trackerId The stat to update.
-     * @param value The new value to merge in.
+     *
+     * @param trackerId         The stat to update.
+     * @param value             The new value to merge in.
      * @param remappingFunction Function to merge (Old, New) -> Result. Ex: Long::sum or Math::max.
      */
     public TrackerMap update(ResourceLocation trackerId, long value, BiFunction<Long, Long, Long> remappingFunction) {

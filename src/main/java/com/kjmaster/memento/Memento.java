@@ -3,7 +3,6 @@ package com.kjmaster.memento;
 import com.kjmaster.memento.compat.CompatHandler;
 import com.kjmaster.memento.data.*;
 import com.kjmaster.memento.event.*;
-import com.kjmaster.memento.data.StatMilestoneManager;
 import com.kjmaster.memento.registry.*;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceLocation;
@@ -31,11 +30,13 @@ public class Memento {
         CompatHandler.init();
 
         // 1. Register (Mod Bus)
+        ModItems.ITEMS.register(modEventBus);
         ModDataComponents.COMPONENTS.register(modEventBus);
         ModDataAttachments.ATTACHMENT_TYPES.register(modEventBus);
         ModRecipes.SERIALIZERS.register(modEventBus);
         ModLootConditionTypes.LOOT_CONDITION_TYPES.register(modEventBus);
         ModLootFunctionTypes.LOOT_FUNCTION_TYPES.register(modEventBus);
+        ModGlobalLootModifiers.GLM_SERIALIZERS.register(modEventBus);
 
         // 2. Register Game Logic Events (Game Bus)
 
@@ -50,6 +51,7 @@ public class Memento {
         NeoForge.EVENT_BUS.register(MetadataEvents.class);
         NeoForge.EVENT_BUS.register(AviationEvents.class);
         NeoForge.EVENT_BUS.register(CultivationEvents.class);
+        NeoForge.EVENT_BUS.register(RestrictionEvents.class);
 
         NeoForge.EVENT_BUS.register(ContextEvents.class);
 
@@ -76,7 +78,9 @@ public class Memento {
                 new StatUsageSpeedManager(),
                 new StatProjectileLogicManager(),
                 new StatVisualPrestigeManager(),
-                new StatMasteryManager()
+                new StatMasteryManager(),
+                new StatTransferFilterManager(),
+                new StatRequirementManager()
         ).forEach(event::addListener);
     }
 }

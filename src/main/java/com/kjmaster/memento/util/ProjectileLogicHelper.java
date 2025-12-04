@@ -9,7 +9,8 @@ import net.minecraft.world.item.ItemStack;
 
 public class ProjectileLogicHelper {
 
-    public record BallisticModifiers(float velocity, float inaccuracy) {}
+    public record BallisticModifiers(float velocity, float inaccuracy) {
+    }
 
     /**
      * Calculates multipliers and applies Damage side-effects.

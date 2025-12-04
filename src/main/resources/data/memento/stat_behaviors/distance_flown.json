@@ -1,1 +1,4 @@
-{ "stat": "memento:distance_flown", "merge_strategy": "sum" }
+{
+  "stat": "memento:distance_flown",
+  "merge_strategy": "sum"
+}

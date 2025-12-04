@@ -1,1 +1,4 @@
-{ "stat": "memento:entities_killed", "merge_strategy": "sum" }
+{
+  "stat": "memento:entities_killed",
+  "merge_strategy": "sum"
+}

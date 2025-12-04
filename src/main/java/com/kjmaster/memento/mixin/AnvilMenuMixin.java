@@ -26,7 +26,9 @@ import java.util.Map;
 @Mixin(value = AnvilMenu.class, priority = 1001)
 public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
-    @Shadow @Final private DataSlot cost;
+    @Shadow
+    @Final
+    private DataSlot cost;
 
     public AnvilMenuMixin(MenuType<?> type, int containerId, net.minecraft.world.entity.player.Inventory playerInventory, net.minecraft.world.inventory.ContainerLevelAccess access) {
         super(type, containerId, playerInventory, access);
@@ -59,7 +61,8 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
                         merged = merged.update(stat, rightValue, (oldVal, newVal) -> switch (strategy) {
                             case MAX -> Math.max(oldVal, newVal);
-                            case MIN -> (oldVal == 0) ? newVal : Math.min(oldVal, newVal); // Treat 0 as "uninitialized" for MIN
+                            case MIN ->
+                                    (oldVal == 0) ? newVal : Math.min(oldVal, newVal); // Treat 0 as "uninitialized" for MIN
                             case SUM -> oldVal + newVal;
                         });
                     }

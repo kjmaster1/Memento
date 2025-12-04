@@ -83,4 +83,14 @@ public class StatEffectManager extends SimpleJsonResourceReloadListener {
 
         return results;
     }
+
+    /**
+     * @return All loaded effect rules, useful for JEI.
+     */
+    public static List<StatEffect> getAllRules() {
+        List<StatEffect> all = new ArrayList<>();
+        GLOBAL_RULES.values().forEach(all::addAll);
+        INDEXED_RULES.values().forEach(map -> map.values().forEach(all::addAll));
+        return all;
+    }
 }

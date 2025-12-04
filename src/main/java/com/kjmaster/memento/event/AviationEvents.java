@@ -49,8 +49,7 @@ public class AviationEvents {
 
             // Update the attachment with the new current value
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
-        }
-        else if (currentStat < previousStat) {
+        } else if (currentStat < previousStat) {
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
         }
     }

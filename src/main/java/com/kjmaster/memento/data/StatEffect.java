@@ -29,7 +29,9 @@ public record StatEffect(
         USER, ATTACK_TARGET;
 
         @Override
-        public @NotNull String getSerializedName() { return name().toLowerCase(); }
+        public @NotNull String getSerializedName() {
+            return name().toLowerCase();
+        }
     }
 
     public enum EffectContext implements StringRepresentable {
@@ -40,7 +42,9 @@ public record StatEffect(
         PASSIVE;        // Constant (Tick)
 
         @Override
-        public @NotNull String getSerializedName() { return name().toLowerCase(); }
+        public @NotNull String getSerializedName() {
+            return name().toLowerCase();
+        }
 
         public static final Codec<EffectContext> CODEC = StringRepresentable.fromEnum(EffectContext::values);
     }

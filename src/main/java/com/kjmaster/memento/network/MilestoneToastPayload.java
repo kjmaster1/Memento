@@ -10,7 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-public record MilestoneToastPayload(ItemStack item, Component title, Component description) implements CustomPacketPayload {
+public record MilestoneToastPayload(ItemStack item, Component title,
+                                    Component description) implements CustomPacketPayload {
 
     public static final Type<MilestoneToastPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Memento.MODID, "milestone_toast"));
 

@@ -43,4 +43,11 @@ public class StatMilestoneManager extends SimpleJsonResourceReloadListener {
     public static List<StatMilestone> getMilestonesFor(ResourceLocation statId) {
         return MILESTONES.getOrDefault(statId, Collections.emptyList());
     }
+
+    /**
+     * @return All loaded milestones, useful for JEI integration.
+     */
+    public static Map<ResourceLocation, List<StatMilestone>> getAllMilestones() {
+        return Collections.unmodifiableMap(MILESTONES);
+    }
 }

@@ -1,1 +1,4 @@
-{ "stat": "memento:damage_blocked", "merge_strategy": "sum" }
+{
+  "stat": "memento:damage_blocked",
+  "merge_strategy": "sum"
+}

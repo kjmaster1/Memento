@@ -26,17 +26,30 @@ public abstract class StatChangeEvent extends Event {
         this.newValue = newValue;
     }
 
-    public LivingEntity getEntity() { return entity; }
+    public LivingEntity getEntity() {
+        return entity;
+    }
 
     @Nullable
     public ServerPlayer getPlayer() {
         return (entity instanceof ServerPlayer player) ? player : null;
     }
 
-    public ItemStack getItem() { return stack; }
-    public ResourceLocation getStatId() { return statId; }
-    public long getOriginalValue() { return originalValue; }
-    public long getNewValue() { return newValue; }
+    public ItemStack getItem() {
+        return stack;
+    }
+
+    public ResourceLocation getStatId() {
+        return statId;
+    }
+
+    public long getOriginalValue() {
+        return originalValue;
+    }
+
+    public long getNewValue() {
+        return newValue;
+    }
 
     /**
      * Fired BEFORE the stat is updated.

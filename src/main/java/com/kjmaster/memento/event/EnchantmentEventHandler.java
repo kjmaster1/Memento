@@ -41,8 +41,7 @@ public class EnchantmentEventHandler {
                     newEnchants.set(enchantHolder.get(), rule.level());
                     changed = true;
                 }
-            }
-            else if (rule.removeIfBelow()) {
+            } else if (rule.removeIfBelow()) {
                 int currentLevel = newEnchants.getLevel(enchantHolder.get());
                 if (currentLevel == rule.level()) {
                     newEnchants.set(enchantHolder.get(), 0);

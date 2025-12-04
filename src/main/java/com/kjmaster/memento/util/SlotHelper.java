@@ -19,9 +19,11 @@ public class SlotHelper {
 
     /**
      * A wrapper to keep track of where the item was found.
+     *
      * @param slot The vanilla slot, or null if it is a Curio/Modded slot.
      */
-    public record SlotContext(ItemStack stack, @Nullable EquipmentSlot slot) {}
+    public record SlotContext(ItemStack stack, @Nullable EquipmentSlot slot) {
+    }
 
     /**
      * Iterates over all worn items (Vanilla Armor/Offhand + Curios) and applies the consumer.
