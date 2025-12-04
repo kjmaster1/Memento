@@ -65,7 +65,10 @@ public class ContextEvents {
                 }
 
                 if (ItemContextHelper.isRangedWeapon(activeItem)) {
-                    MementoAPI.incrementStat(player, activeItem, ModStats.SHOTS_FIRED, 1);
+                    // VALIDATION: Ensure the item is valid and present before updating
+                    if (isItemInInventory(player, activeItem)) {
+                        MementoAPI.incrementStat(player, activeItem, ModStats.SHOTS_FIRED, 1);
+                    }
                 }
             }
         }
@@ -100,7 +103,11 @@ public class ContextEvents {
             }
 
             if (ItemContextHelper.isRangedWeapon(held)) {
-                MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
+                // VALIDATION: Critical check to ensure we don't update a "ghost" item reference
+                // if the player has dropped, destroyed, or split the stack since firing.
+                if (isItemInInventory(player, held)) {
+                    MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
+                }
             }
         }
     }
@@ -221,5 +228,27 @@ public class ContextEvents {
         }
     }
 
+    /**
+     * Checks if the specific ItemStack object instance is still present in the player's inventory.
+     * This uses reference equality (==) to ensure we are targeting the exact object attached to the projectile,
+     * protecting against split stacks or ghost items.
+     */
+    private static boolean isItemInInventory(ServerPlayer player, ItemStack stack) {
+        if (stack.isEmpty()) return false;
 
+        // Check main inventory (includes hotbar)
+        for (ItemStack s : player.getInventory().items) {
+            if (s == stack) return true;
+        }
+        // Check offhand
+        for (ItemStack s : player.getInventory().offhand) {
+            if (s == stack) return true;
+        }
+        // Check armor slots
+        for (ItemStack s : player.getInventory().armor) {
+            if (s == stack) return true;
+        }
+
+        return false;
+    }
 }

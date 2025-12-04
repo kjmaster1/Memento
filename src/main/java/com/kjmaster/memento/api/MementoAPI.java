@@ -10,9 +10,16 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 public class MementoAPI {
+
+    // Recursion guard to prevent infinite loops (e.g. Advancement -> Command -> Stat Change -> Advancement...)
+    // We use identityHashCode for the stack to target the specific item instance being processed.
+    private record RecursionKey(int stackIdentity, ResourceLocation statId) {}
+    private static final ThreadLocal<Set<RecursionKey>> RECURSION_GUARD = ThreadLocal.withInitial(HashSet::new);
 
     // --- Standard Methods (Default: fireEvents = true) ---
 
@@ -54,22 +61,41 @@ public class MementoAPI {
 
         if (newValue == oldValue) return; // No change, exit before allocating new objects
 
-        // 2. Fire PRE Event (Cancellable)
-        if (fireEvents) {
-            StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(player, stack, statId, oldValue, newValue);
-            if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
-                return;
-            }
+        // --- Recursion Guard Check ---
+        // Prevents: Stat Change -> Event -> Advancement -> Function -> Stat Change (Infinite Loop)
+        RecursionKey key = new RecursionKey(System.identityHashCode(stack), statId);
+        boolean isRecursive = RECURSION_GUARD.get().contains(key);
+
+        // If we are recursive, we suppress events for this nested call to break the loop.
+        // The stat will still update, but milestones/advancements won't trigger again for this specific update.
+        boolean shouldFire = fireEvents && !isRecursive;
+
+        if (shouldFire) {
+            RECURSION_GUARD.get().add(key);
         }
 
-        // 3. Apply Change
-        // We use a simple replacer function because we already calculated 'newValue'
-        TrackerMap tentativeStats = currentStats.update(statId, newValue, (old, n) -> n);
-        stack.set(ModDataComponents.TRACKER_MAP, tentativeStats);
+        try {
+            // 2. Fire PRE Event (Cancellable)
+            if (shouldFire) {
+                StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(player, stack, statId, oldValue, newValue);
+                if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
+                    return;
+                }
+            }
 
-        // 4. Fire POST Event (Logic Hooks)
-        if (fireEvents) {
-            NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(player, stack, statId, oldValue, newValue));
+            // 3. Apply Change
+            // We use a simple replacer function because we already calculated 'newValue'
+            TrackerMap tentativeStats = currentStats.update(statId, newValue, (old, n) -> n);
+            stack.set(ModDataComponents.TRACKER_MAP, tentativeStats);
+
+            // 4. Fire POST Event (Logic Hooks)
+            if (shouldFire) {
+                NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(player, stack, statId, oldValue, newValue));
+            }
+        } finally {
+            if (shouldFire) {
+                RECURSION_GUARD.get().remove(key);
+            }
         }
     }
 

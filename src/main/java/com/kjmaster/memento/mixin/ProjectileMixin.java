@@ -45,16 +45,15 @@ public abstract class ProjectileMixin implements IMementoProjectile {
     private void memento$onShootHead(double x, double y, double z, float velocity, float inaccuracy, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
         Projectile self = (Projectile) (Object) this;
 
-        // 1. Context Capture (Fix for 3.4)
+        // 1. Context Capture
         // Ensure we know which weapon fired this.
         if (self.getOwner() instanceof LivingEntity living) {
             if (!self.hasData(ModDataAttachments.SOURCE_STACK) || self.getData(ModDataAttachments.SOURCE_STACK).isEmpty()) {
                 ItemStack weapon = memento$findWeapon(living);
                 if (!weapon.isEmpty()) {
-                    // Store a COPY of the item to preserve its state at the time of firing (optional, but safer for stats context)
-                    // Or store reference if we intend to mutate it later?
-                    // For Memento, we usually want to mutate the item in the inventory.
-                    // However, ItemStack is not a managed entity; storing the reference is usually correct for short-lived actions.
+                    // We store the REFERENCE to the weapon here to allow updating stats (Shots Fired, Longest Shot) later.
+                    // Validation for this reference (to prevent "ghost" updates on split/moved stacks) is handled
+                    // in ContextEvents.java (onProjectileImpact / onEntityJoin).
                     self.setData(ModDataAttachments.SOURCE_STACK, weapon);
                 }
             }
