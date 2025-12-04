@@ -4,11 +4,13 @@ import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.component.ItemMetadata;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.component.UnlockedMilestones;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 public class ModDataComponents {
@@ -29,6 +31,11 @@ public class ModDataComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<UnlockedMilestones>> MILESTONES = register("milestones", builder -> builder
             .persistent(UnlockedMilestones.CODEC)
             .networkSynchronized(UnlockedMilestones.STREAM_CODEC)
+    );
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> ITEM_UUID = register("uuid", builder -> builder
+            .persistent(UUIDUtil.CODEC)
+            .networkSynchronized(UUIDUtil.STREAM_CODEC)
     );
 
     private static <T> DeferredHolder<DataComponentType<?>, DataComponentType<T>> register(String name, UnaryOperator<DataComponentType.Builder<T>> builderOp) {

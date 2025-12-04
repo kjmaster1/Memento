@@ -8,6 +8,7 @@ import com.kjmaster.memento.data.StatMilestoneManager;
 import com.kjmaster.memento.network.MilestoneToastPayload;
 import com.kjmaster.memento.registry.ModDataComponents;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -21,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -98,8 +100,11 @@ public class MilestoneEventHandler {
 
         if (milestone.titleName().isPresent()) {
             stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
+
+            ItemStack visualStack = createVisualCopy(stack);
+
             PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
-                    stack,
+                    visualStack,
                     Component.translatable("memento.toast.levelup"),
                     milestone.titleName().get()
             ));
@@ -182,5 +187,42 @@ public class MilestoneEventHandler {
             Memento.LOGGER.error("Error attempting to replace item in Curios slot", e);
         }
         return found.get();
+    }
+
+    /**
+     * Creates a lightweight copy of the stack containing only components relevant for rendering.
+     * This strips potential "heavy" data from other mods (e.g. Backpack inventories).
+     */
+    private static ItemStack createVisualCopy(ItemStack original) {
+        ItemStack copy = new ItemStack(original.getItem());
+
+        // Vanilla Visuals
+        copyComponent(original, copy, DataComponents.CUSTOM_NAME);
+        copyComponent(original, copy, DataComponents.ITEM_NAME);
+        copyComponent(original, copy, DataComponents.RARITY);
+        copyComponent(original, copy, DataComponents.ENCHANTMENTS);
+        copyComponent(original, copy, DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
+        copyComponent(original, copy, DataComponents.TRIM);
+        copyComponent(original, copy, DataComponents.DYED_COLOR);
+        copyComponent(original, copy, DataComponents.PROFILE);
+        copyComponent(original, copy, DataComponents.BANNER_PATTERNS);
+        copyComponent(original, copy, DataComponents.BASE_COLOR);
+        copyComponent(original, copy, DataComponents.POTION_CONTENTS);
+        copyComponent(original, copy, DataComponents.CUSTOM_MODEL_DATA);
+
+        // Memento Visuals (Needed for Prestige Rarity/Glint calculations)
+        copyComponent(original, copy, ModDataComponents.TRACKER_MAP);
+
+        return copy;
+    }
+
+    private static <T> void copyComponent(ItemStack source, ItemStack dest, DeferredHolder<DataComponentType<?>, DataComponentType<T>> typeHolder) {
+        copyComponent(source, dest, typeHolder.get());
+    }
+
+    private static <T> void copyComponent(ItemStack source, ItemStack dest, DataComponentType<T> type) {
+        if (source.has(type)) {
+            dest.set(type, source.get(type));
+        }
     }
 }

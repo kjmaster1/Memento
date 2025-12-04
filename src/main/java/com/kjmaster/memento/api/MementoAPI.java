@@ -50,6 +50,12 @@ public class MementoAPI {
      * @param fireEvents If false, skips firing NeoForge events. WARNING: This will bypass Milestones and Logic hooks!
      */
     public static void updateStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value, BiFunction<Long, Long, Long> mergeFunction, boolean fireEvents) {
+        // DESIGN DECISION:
+        // We explicitly block stats on stackable items (max stack size > 1).
+        // Tracking stats on stackable items creates immense complexity regarding:
+        // 1. Splitting Stacks: Which half keeps the stats? Do we duplicate them?
+        // 2. Merging Stacks: Do we sum the kills? Average them?
+        // 3. Identity: Memento is designed for unique "Hero" items (swords, pickaxes), not commodities.
         if (stack.isEmpty() || stack.getMaxStackSize() > 1) return;
 
         TrackerMap currentStats = stack.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);

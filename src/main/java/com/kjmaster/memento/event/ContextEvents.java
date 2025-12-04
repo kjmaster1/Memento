@@ -3,6 +3,7 @@ package com.kjmaster.memento.event;
 import com.kjmaster.memento.Config;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModDataAttachments;
+import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModStats;
 import com.kjmaster.memento.util.ItemContextHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,6 +22,8 @@ import net.neoforged.neoforge.event.entity.living.LivingShieldBlockEvent;
 import net.neoforged.neoforge.event.entity.player.ItemFishedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+
+import java.util.UUID;
 
 public class ContextEvents {
 
@@ -229,13 +232,30 @@ public class ContextEvents {
     }
 
     /**
-     * Checks if the specific ItemStack object instance is still present in the player's inventory.
-     * This uses reference equality (==) to ensure we are targeting the exact object attached to the projectile,
-     * protecting against split stacks or ghost items.
+     * Checks if the specific ItemStack is present in the player's inventory.
+     * Uses UUID for persistence-safe comparison.
      */
     private static boolean isItemInInventory(ServerPlayer player, ItemStack stack) {
         if (stack.isEmpty()) return false;
 
+        // 1. UUID Check (Robust)
+        if (stack.has(ModDataComponents.ITEM_UUID)) {
+            UUID targetId = stack.get(ModDataComponents.ITEM_UUID);
+
+            // Scan Inventory
+            for (ItemStack s : player.getInventory().items) {
+                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
+            }
+            for (ItemStack s : player.getInventory().offhand) {
+                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
+            }
+            for (ItemStack s : player.getInventory().armor) {
+                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
+            }
+            return false;
+        }
+
+        // 2. Fallback: Reference Equality (Legacy/Uninitialized items)
         // Check main inventory (includes hotbar)
         for (ItemStack s : player.getInventory().items) {
             if (s == stack) return true;

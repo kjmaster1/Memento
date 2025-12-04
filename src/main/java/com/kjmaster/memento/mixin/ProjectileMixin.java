@@ -2,7 +2,9 @@ package com.kjmaster.memento.mixin;
 
 import com.kjmaster.memento.data.StatProjectileLogicManager;
 import com.kjmaster.memento.registry.ModDataAttachments;
+import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.util.IMementoProjectile;
+import com.kjmaster.memento.util.ItemContextHelper;
 import com.kjmaster.memento.util.ProjectileLogicHelper;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
@@ -15,6 +17,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+
+import java.util.UUID;
 
 @Mixin(Projectile.class)
 public abstract class ProjectileMixin implements IMementoProjectile {
@@ -51,9 +55,11 @@ public abstract class ProjectileMixin implements IMementoProjectile {
             if (!self.hasData(ModDataAttachments.SOURCE_STACK) || self.getData(ModDataAttachments.SOURCE_STACK).isEmpty()) {
                 ItemStack weapon = memento$findWeapon(living);
                 if (!weapon.isEmpty()) {
-                    // We store the REFERENCE to the weapon here to allow updating stats (Shots Fired, Longest Shot) later.
-                    // Validation for this reference (to prevent "ghost" updates on split/moved stacks) is handled
-                    // in ContextEvents.java (onProjectileImpact / onEntityJoin).
+
+                    if (!weapon.has(ModDataComponents.ITEM_UUID)) {
+                        weapon.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+                    }
+
                     self.setData(ModDataAttachments.SOURCE_STACK, weapon);
                 }
             }
@@ -140,7 +146,14 @@ public abstract class ProjectileMixin implements IMementoProjectile {
         stack = living.getOffhandItem();
         if (!stack.isEmpty() && stack.getItem() instanceof ProjectileWeaponItem) return stack;
 
-        // 4. Fallback: Return Main Hand anyway (for non-ProjectileWeaponItem modded items)
-        return living.getMainHandItem();
+        // 4. Fallback: Generic Ranged Check (Modded Items, Tridents, Tags)
+        // We verify the item is actually a ranged weapon to avoid false positives (e.g. Swords).
+        stack = living.getMainHandItem();
+        if (!stack.isEmpty() && ItemContextHelper.isRangedWeapon(stack)) return stack;
+
+        stack = living.getOffhandItem();
+        if (!stack.isEmpty() && ItemContextHelper.isRangedWeapon(stack)) return stack;
+
+        return ItemStack.EMPTY;
     }
 }
