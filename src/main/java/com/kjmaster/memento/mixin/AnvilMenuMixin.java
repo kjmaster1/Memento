@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Map;
 
-@Mixin(value = AnvilMenu.class, priority = 2000)
+@Mixin(value = AnvilMenu.class, priority = 1001)
 public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
     @Shadow @Final private DataSlot cost;
@@ -41,41 +41,34 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
         if (left.isEmpty() || result.isEmpty()) return;
 
         // --- 1. STAT MERGING LOGIC ---
-        // If both items have Memento stats, we merge them onto the result.
-        if (left.has(ModDataComponents.TRACKER_MAP) && right.has(ModDataComponents.TRACKER_MAP)) {
-            TrackerMap leftMap = left.get(ModDataComponents.TRACKER_MAP);
+        // Use stack.update() for atomic, safe component modification.
+        // This ensures we respect any existing data on the result stack (which Vanilla copies from 'left').
+        if (right.has(ModDataComponents.TRACKER_MAP)) {
             TrackerMap rightMap = right.get(ModDataComponents.TRACKER_MAP);
 
-            // Start with Left's stats (which Vanilla usually copies to Result already)
-            // We use the Result's map as the base to ensure we are modifying the output
-            TrackerMap resultMap = result.getOrDefault(ModDataComponents.TRACKER_MAP, leftMap);
-
-            // Merge Right's stats into Result
             if (rightMap != null && !rightMap.stats().isEmpty()) {
-                for (Map.Entry<ResourceLocation, Long> entry : rightMap.stats().entrySet()) {
-                    ResourceLocation stat = entry.getKey();
-                    long rightValue = entry.getValue();
-                    long currentResultValue = resultMap.getValue(stat);
+                result.update(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY, currentMap -> {
+                    // Start with the current map (from Left item) and merge Right item's stats into it
+                    TrackerMap merged = currentMap;
+                    for (Map.Entry<ResourceLocation, Long> entry : rightMap.stats().entrySet()) {
+                        ResourceLocation stat = entry.getKey();
+                        long rightValue = entry.getValue();
 
-                    // Determine Merge Strategy from JSON (Default: SUM)
-                    StatBehavior.MergeStrategy strategy = StatBehaviorManager.getStrategy(stat);
-                    long newValue = switch (strategy) {
-                        case MAX -> Math.max(currentResultValue, rightValue);
-                        case MIN -> (currentResultValue == 0) ? rightValue : Math.min(currentResultValue, rightValue);
-                        case SUM -> currentResultValue + rightValue;
-                    };
+                        // Determine Merge Strategy from JSON (Default: SUM)
+                        StatBehavior.MergeStrategy strategy = StatBehaviorManager.getStrategy(stat);
 
-                    // Only update if changed (optimization)
-                    if (newValue != currentResultValue) {
-                        final long finalVal = newValue;
-                        resultMap = resultMap.update(stat, newValue, (old, n) -> finalVal);
+                        merged = merged.update(stat, rightValue, (oldVal, newVal) -> switch (strategy) {
+                            case MAX -> Math.max(oldVal, newVal);
+                            case MIN -> (oldVal == 0) ? newVal : Math.min(oldVal, newVal); // Treat 0 as "uninitialized" for MIN
+                            case SUM -> oldVal + newVal;
+                        });
                     }
-                }
-                result.set(ModDataComponents.TRACKER_MAP, resultMap);
+                    return merged;
+                });
             }
         }
 
-        // --- 2. REPAIR COST CAP LOGIC
+        // --- 2. REPAIR COST CAP LOGIC ---
         int lowestCap = -1;
         for (StatRepairCap rule : StatRepairCapManager.getAllRules()) {
             long val = MementoAPI.getStat(left, rule.stat());
@@ -90,20 +83,22 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
             int currentCost = this.cost.get();
 
             // Safety Logic:
-            // Only clamp the cost if we are applying a discount (cap < 39)
-            // OR if the cost is within vanilla bounds ( < 40 ).
-            // If the cost is >= 40 (Too Expensive) but the result exists, it means another mod (e.g. Easy Anvils)
-            // or Creative Mode is allowing it. In this case, we avoid undercutting the mod's pricing unless
-            // the cap is explicitly a "Discount" (low value).
+            // 1. Only act if the current cost effectively exceeds our cap.
+            // 2. Compatibility: If the cost is >= 40 (Too Expensive allowed by another mod or Creative mode),
+            //    we ONLY override it if our cap is explicitly a "Discount" (e.g. < 39).
+            //    This prevents us from resetting a "Hardcore Repair" mod's intentionally high cost (e.g. 50)
+            //    back to the vanilla limit (39) just because a generic cap rule exists.
             if (currentCost > lowestCap) {
                 if (lowestCap < 39 || currentCost < 40) {
                     this.cost.set(lowestCap);
-                }
-            }
 
-            int futureCost = result.getOrDefault(DataComponents.REPAIR_COST, 0);
-            if (futureCost > lowestCap) {
-                result.set(DataComponents.REPAIR_COST, lowestCap);
+                    // Update the item's internal repair cost component to ensure the penalty
+                    // doesn't immediately scale back up on the next repair.
+                    int itemRepairCost = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+                    if (itemRepairCost > lowestCap) {
+                        result.set(DataComponents.REPAIR_COST, lowestCap);
+                    }
+                }
             }
         }
     }

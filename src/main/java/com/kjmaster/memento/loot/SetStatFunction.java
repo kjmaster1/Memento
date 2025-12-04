@@ -1,15 +1,19 @@
 package com.kjmaster.memento.loot;
 
+import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModLootFunctionTypes;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.functions.LootItemConditionalFunction;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctionType;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import net.minecraft.world.level.storage.loot.providers.number.NumberProvider;
 import net.minecraft.world.level.storage.loot.providers.number.NumberProviders;
@@ -40,19 +44,28 @@ public class SetStatFunction extends LootItemConditionalFunction {
         long amount = value.getInt(context);
         if (amount <= 0) return stack;
 
-        // 2. Ensure UUID (Hero Item Identity)
-        if (!stack.has(ModDataComponents.ITEM_UUID)) {
-            stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+        // 2. Try to find a LivingEntity context to trigger events
+        // THIS_ENTITY is usually the actor (e.g., the player in `/loot give` or the mob in mob drops).
+        Entity entity = context.getParamOrNull(LootContextParams.THIS_ENTITY);
+
+        if (entity instanceof LivingEntity living) {
+            // Use API: This handles UUID generation AND fires StatChangeEvent.
+            // This ensures Milestones/Advancements trigger immediately if a player is the context.
+            MementoAPI.updateStat(living, stack, stat, amount, (old, newVal) -> newVal);
+        } else {
+            // Fallback: Manual Silent Update
+            // This runs for entity-less contexts (e.g., Dungeon Chest generation).
+
+            // Ensure UUID (Hero Item Identity)
+            if (!stack.has(ModDataComponents.ITEM_UUID)) {
+                stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+            }
+
+            // Apply Stat directly
+            TrackerMap map = stack.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
+            TrackerMap newMap = map.update(stat, amount, (oldVal, newVal) -> newVal);
+            stack.set(ModDataComponents.TRACKER_MAP, newMap);
         }
-
-        // 3. Apply Stat
-        // We manipulate components directly here because MementoAPI requires a ServerPlayer,
-        // which might not be available in all LootContexts (e.g. automated droppers).
-        TrackerMap map = stack.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
-
-        TrackerMap newMap = map.update(stat, amount, (oldVal, newVal) -> newVal);
-
-        stack.set(ModDataComponents.TRACKER_MAP, newMap);
 
         return stack;
     }

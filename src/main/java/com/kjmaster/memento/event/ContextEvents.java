@@ -7,6 +7,7 @@ import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModStats;
 import com.kjmaster.memento.util.ItemContextHelper;
 import com.kjmaster.memento.util.ProjectileLogicHelper;
+import com.kjmaster.memento.util.SlotHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
@@ -14,6 +15,7 @@ import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.common.IShearable;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
@@ -23,8 +25,10 @@ import net.neoforged.neoforge.event.entity.living.LivingShieldBlockEvent;
 import net.neoforged.neoforge.event.entity.player.ItemFishedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.UUID;
+import java.util.function.Predicate;
 
 public class ContextEvents {
 
@@ -259,40 +263,36 @@ public class ContextEvents {
 
     /**
      * Checks if the specific ItemStack is present in the player's inventory.
-     * Uses UUID for persistence-safe comparison.
+     * Uses UUID for persistence-safe comparison and checks Capabilities for robustness.
      */
     private static boolean isItemInInventory(ServerPlayer player, ItemStack stack) {
         if (stack.isEmpty()) return false;
 
-        // 1. UUID Check (Robust)
-        if (stack.has(ModDataComponents.ITEM_UUID)) {
-            UUID targetId = stack.get(ModDataComponents.ITEM_UUID);
+        final UUID targetId = stack.has(ModDataComponents.ITEM_UUID) ? stack.get(ModDataComponents.ITEM_UUID) : null;
 
-            // Scan Inventory
-            for (ItemStack s : player.getInventory().items) {
-                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
+        // Unified predicate for UUID or Reference checking
+        Predicate<ItemStack> isMatch = (s) -> {
+            if (s.isEmpty()) return false;
+            if (targetId != null && s.has(ModDataComponents.ITEM_UUID)) {
+                return targetId.equals(s.get(ModDataComponents.ITEM_UUID));
             }
-            for (ItemStack s : player.getInventory().offhand) {
-                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
+            return s == stack;
+        };
+
+        // 1. Capability Scan (Main, Armor, Offhand, Modded Wrappers)
+        IItemHandler itemHandler = player.getCapability(Capabilities.ItemHandler.ENTITY, null);
+        if (itemHandler != null) {
+            for (int i = 0; i < itemHandler.getSlots(); i++) {
+                if (isMatch.test(itemHandler.getStackInSlot(i))) return true;
             }
-            for (ItemStack s : player.getInventory().armor) {
-                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) return true;
-            }
-            return false;
         }
 
-        // 2. Fallback: Reference Equality (Legacy/Uninitialized items)
-        // Check main inventory (includes hotbar)
-        for (ItemStack s : player.getInventory().items) {
-            if (s == stack) return true;
-        }
-        // Check offhand
-        for (ItemStack s : player.getInventory().offhand) {
-            if (s == stack) return true;
-        }
-        // Check armor slots
-        for (ItemStack s : player.getInventory().armor) {
-            if (s == stack) return true;
+        // 2. Curios / Worn Scan
+        // Use SlotHelper to check Curios slots without hard-coding API calls here.
+        // This handles the "I swapped my bow to my back slot/belt" scenario.
+        for (SlotHelper.SlotContext ctx : SlotHelper.getAllWornItems(player)) {
+            // Note: This overlaps with Armor/Offhand from ItemHandler, but the duplicate check is harmless/fast.
+            if (isMatch.test(ctx.stack())) return true;
         }
 
         return false;
