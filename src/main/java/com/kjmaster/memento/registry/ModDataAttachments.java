@@ -2,6 +2,7 @@ package com.kjmaster.memento.registry;
 
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.Codec;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -22,5 +23,12 @@ public class ModDataAttachments {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Integer>> LAST_AVIATE_VALUE = ATTACHMENT_TYPES.register(
             "last_aviate_value",
             () -> AttachmentType.builder(() -> 0).serialize(Codec.INT).build()
+    );
+
+    // Stores the weapon ItemStack that fired a projectile.
+    // We use ItemStack.EMPTY as the default.
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemStack>> SOURCE_STACK = ATTACHMENT_TYPES.register(
+            "source_stack",
+            () -> AttachmentType.builder(() -> ItemStack.EMPTY).serialize(ItemStack.CODEC).build()
     );
 }

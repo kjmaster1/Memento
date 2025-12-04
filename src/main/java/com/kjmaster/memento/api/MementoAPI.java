@@ -14,37 +14,63 @@ import java.util.function.BiFunction;
 
 public class MementoAPI {
 
+    // --- Standard Methods (Default: fireEvents = true) ---
+
     public static void incrementStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long amount) {
-        updateStat(player, stack, statId, amount, Long::sum);
+        updateStat(player, stack, statId, amount, Long::sum, true);
     }
 
     public static void maximizeStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value) {
-        updateStat(player, stack, statId, value, Math::max);
+        updateStat(player, stack, statId, value, Math::max, true);
     }
 
     public static void updateStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value, BiFunction<Long, Long, Long> mergeFunction) {
+        updateStat(player, stack, statId, value, mergeFunction, true);
+    }
+
+    // --- Overloads with Control Flags ---
+
+    public static void incrementStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long amount, boolean fireEvents) {
+        updateStat(player, stack, statId, amount, Long::sum, fireEvents);
+    }
+
+    public static void maximizeStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value, boolean fireEvents) {
+        updateStat(player, stack, statId, value, Math::max, fireEvents);
+    }
+
+    /**
+     * Updates a stat on the item.
+     * @param fireEvents If false, skips firing NeoForge events. WARNING: This will bypass Milestones and Logic hooks!
+     */
+    public static void updateStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value, BiFunction<Long, Long, Long> mergeFunction, boolean fireEvents) {
         if (stack.isEmpty() || stack.getMaxStackSize() > 1) return;
 
         TrackerMap currentStats = stack.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
         long oldValue = currentStats.getValue(statId);
 
-        // 1. Calculate tentative new value (Dry Run)
-        TrackerMap tentativeStats = currentStats.update(statId, value, mergeFunction);
-        long newValue = tentativeStats.getValue(statId);
+        // 1. Calculate tentative new value (Dry Run) WITHOUT allocation [Optimization 3.1]
+        // We manually apply the merge function to see if the value effectively changes
+        long newValue = mergeFunction.apply(oldValue, value);
 
-        if (newValue == oldValue) return; // No change
+        if (newValue == oldValue) return; // No change, exit before allocating new objects
 
         // 2. Fire PRE Event (Cancellable)
-        StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(player, stack, statId, oldValue, newValue);
-        if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
-            return;
+        if (fireEvents) {
+            StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(player, stack, statId, oldValue, newValue);
+            if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
+                return;
+            }
         }
 
         // 3. Apply Change
+        // We use a simple replacer function because we already calculated 'newValue'
+        TrackerMap tentativeStats = currentStats.update(statId, newValue, (old, n) -> n);
         stack.set(ModDataComponents.TRACKER_MAP, tentativeStats);
 
         // 4. Fire POST Event (Logic Hooks)
-        NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(player, stack, statId, oldValue, newValue));
+        if (fireEvents) {
+            NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(player, stack, statId, oldValue, newValue));
+        }
     }
 
     /**

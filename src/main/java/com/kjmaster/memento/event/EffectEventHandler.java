@@ -53,11 +53,12 @@ public class EffectEventHandler {
     }
 
     private static void applyContext(ServerPlayer user, LivingEntity target, StatEffect.EffectContext context) {
-        List<StatEffect> rules = StatEffectManager.getRules(context);
-        if (rules.isEmpty()) return;
-
         for (SlotHelper.SlotContext slotCtx : SlotHelper.getAllWornItems(user)) {
             ItemStack stack = slotCtx.stack();
+
+            // OPTIMIZATION: Only fetch rules that are Global OR specific to this Item
+            List<StatEffect> rules = StatEffectManager.getRules(context, stack);
+            if (rules.isEmpty()) continue;
 
             for (StatEffect rule : rules) {
                 if (slotCtx.slot() != null) {

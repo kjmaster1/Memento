@@ -1,6 +1,7 @@
 package com.kjmaster.memento.mixin;
 
 import com.kjmaster.memento.data.StatProjectileLogicManager;
+import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.util.IMementoProjectile;
 import com.kjmaster.memento.util.ProjectileLogicHelper;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -42,20 +43,33 @@ public abstract class ProjectileMixin implements IMementoProjectile {
 
     @Inject(method = "shoot(DDDFF)V", at = @At("HEAD"))
     private void memento$onShootHead(double x, double y, double z, float velocity, float inaccuracy, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        Projectile self = (Projectile) (Object) this;
+
+        // 1. Context Capture (Fix for 3.4)
+        // Ensure we know which weapon fired this.
+        if (self.getOwner() instanceof LivingEntity living) {
+            if (!self.hasData(ModDataAttachments.SOURCE_STACK) || self.getData(ModDataAttachments.SOURCE_STACK).isEmpty()) {
+                ItemStack weapon = memento$findWeapon(living);
+                if (!weapon.isEmpty()) {
+                    // Store a COPY of the item to preserve its state at the time of firing (optional, but safer for stats context)
+                    // Or store reference if we intend to mutate it later?
+                    // For Memento, we usually want to mutate the item in the inventory.
+                    // However, ItemStack is not a managed entity; storing the reference is usually correct for short-lived actions.
+                    self.setData(ModDataAttachments.SOURCE_STACK, weapon);
+                }
+            }
+        }
+
         // Optimization: Skip all logic if no rules are defined
         if (StatProjectileLogicManager.getAllRules().isEmpty()) return;
 
         if (this.memento$isBallisticsApplied()) return;
 
-        Projectile self = (Projectile) (Object) this;
-        Entity owner = self.getOwner();
+        // Retrieve weapon from attachment (now guaranteed to be set if found)
+        ItemStack stack = self.getData(ModDataAttachments.SOURCE_STACK);
 
-        if (owner instanceof LivingEntity living) {
-            ItemStack stack = memento$findWeapon(living);
-
-            if (!stack.isEmpty()) {
-                ProjectileLogicHelper.applyDamageModifier(stack, self);
-            }
+        if (!stack.isEmpty()) {
+            ProjectileLogicHelper.applyDamageModifier(stack, self);
         }
     }
 
@@ -67,20 +81,17 @@ public abstract class ProjectileMixin implements IMementoProjectile {
         if (this.memento$isBallisticsApplied()) return;
 
         Projectile self = (Projectile) (Object) this;
-        Entity owner = self.getOwner();
+        ItemStack stack = self.getData(ModDataAttachments.SOURCE_STACK);
 
-        if (owner instanceof LivingEntity living) {
-            ItemStack stack = memento$findWeapon(living);
-            if (!stack.isEmpty()) {
-                // Apply Velocity Multiplier to the final vector
-                float mult = ProjectileLogicHelper.getVelocityMultiplier(stack);
-                if (mult != 1.0f) {
-                    self.setDeltaMovement(self.getDeltaMovement().scale(mult));
-                }
-
-                // Mark applied so we don't do it again
-                this.memento$setBallisticsApplied(true);
+        if (!stack.isEmpty()) {
+            // Apply Velocity Multiplier to the final vector
+            float mult = ProjectileLogicHelper.getVelocityMultiplier(stack);
+            if (mult != 1.0f) {
+                self.setDeltaMovement(self.getDeltaMovement().scale(mult));
             }
+
+            // Mark applied so we don't do it again
+            this.memento$setBallisticsApplied(true);
         }
     }
 
@@ -97,14 +108,20 @@ public abstract class ProjectileMixin implements IMementoProjectile {
             return;
         }
 
-        if (shooter instanceof LivingEntity living) {
-            ItemStack stack = memento$findWeapon(living);
+        // Try to find weapon to apply logic, using attachment if available or heuristic
+        ItemStack stack = instance.getData(ModDataAttachments.SOURCE_STACK);
+        if (stack.isEmpty() && shooter instanceof LivingEntity living) {
+            stack = memento$findWeapon(living);
             if (!stack.isEmpty()) {
-                var mods = ProjectileLogicHelper.applyBallistics(stack, instance, velocity, inaccuracy);
-                original.call(instance, x, y, z, mods.velocity(), mods.inaccuracy());
-                this.memento$setBallisticsApplied(true);
-                return;
+                instance.setData(ModDataAttachments.SOURCE_STACK, stack);
             }
+        }
+
+        if (!stack.isEmpty()) {
+            var mods = ProjectileLogicHelper.applyBallistics(stack, instance, velocity, inaccuracy);
+            original.call(instance, x, y, z, mods.velocity(), mods.inaccuracy());
+            this.memento$setBallisticsApplied(true);
+            return;
         }
 
         original.call(instance, x, y, z, velocity, inaccuracy);

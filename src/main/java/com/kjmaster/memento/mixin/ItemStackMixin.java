@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 @Mixin(ItemStack.class)
@@ -28,7 +29,10 @@ public abstract class ItemStackMixin {
         Rarity currentRarity = cir.getReturnValue();
         Rarity bestRarity = currentRarity;
 
-        for (StatVisualPrestige rule : StatVisualPrestigeManager.getAllRules()) {
+        // Optimization: Use getRules(stack) to avoid iterating irrelevant rules
+        List<StatVisualPrestige> rules = StatVisualPrestigeManager.getRules(stack);
+
+        for (StatVisualPrestige rule : rules) {
             if (rule.rarity().isEmpty()) continue;
 
             long val = MementoAPI.getStat(stack, rule.stat());
@@ -54,7 +58,9 @@ public abstract class ItemStackMixin {
         ItemStack stack = (ItemStack) (Object) this;
         if (stack.isEmpty()) return;
 
-        for (StatVisualPrestige rule : StatVisualPrestigeManager.getAllRules()) {
+        List<StatVisualPrestige> rules = StatVisualPrestigeManager.getRules(stack);
+
+        for (StatVisualPrestige rule : rules) {
             // Only check rules that WANT to force glint
             if (rule.glint().orElse(false)) {
                 long val = MementoAPI.getStat(stack, rule.stat());
@@ -70,6 +76,8 @@ public abstract class ItemStackMixin {
     private void memento$preventDamageIfMastered(int damage, ServerLevel level, @Nullable LivingEntity entity, Consumer<Object> onBreak, CallbackInfo ci) {
         ItemStack stack = (ItemStack) (Object) this;
 
+        // Note: StatMasteryManager could also be optimized similar to VisualPrestige
+        // For now, we leave it as linear since mastery rules are typically very few.
         for (StatMastery rule : StatMasteryManager.getAllRules()) {
             if (rule.preventDamage()) {
                 long val = MementoAPI.getStat(stack, rule.stat());

@@ -51,10 +51,18 @@ public class ContextEvents {
 
                 if (!Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) return;
 
-                // Increment "Shots Fired" on the active item
-                ItemStack activeItem = player.getUseItem();
-                // If the player released the bow instantly, getUseItem might be empty, check main/offhand fallback
-                if (activeItem.isEmpty()) activeItem = player.getMainHandItem();
+                // Identify the weapon using the Attachment (preferred) or Fallback
+                ItemStack activeItem = ItemStack.EMPTY;
+
+                if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
+                    activeItem = projectile.getData(ModDataAttachments.SOURCE_STACK);
+                }
+
+                // Fallback if Mixin didn't catch it (unlikely but possible for some modded projectiles)
+                if (activeItem.isEmpty()) {
+                    activeItem = player.getUseItem();
+                    if (activeItem.isEmpty()) activeItem = player.getMainHandItem();
+                }
 
                 if (ItemContextHelper.isRangedWeapon(activeItem)) {
                     MementoAPI.incrementStat(player, activeItem, ModStats.SHOTS_FIRED, 1);
@@ -77,14 +85,22 @@ public class ContextEvents {
             double distance = origin.distanceTo(projectile.position());
             long distanceCm = (long) (distance * 100);
 
-            ItemStack held = player.getMainHandItem();
+            // Use the Attached Weapon for context
+            ItemStack held = ItemStack.EMPTY;
+            if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
+                held = projectile.getData(ModDataAttachments.SOURCE_STACK);
+            }
+
+            // Fallback logic (Old heuristic)
+            if (held.isEmpty()) {
+                held = player.getMainHandItem();
+                if (!ItemContextHelper.isRangedWeapon(held)) {
+                    held = player.getOffhandItem();
+                }
+            }
+
             if (ItemContextHelper.isRangedWeapon(held)) {
                 MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
-            } else {
-                held = player.getOffhandItem();
-                if (ItemContextHelper.isRangedWeapon(held)) {
-                    MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
-                }
             }
         }
     }

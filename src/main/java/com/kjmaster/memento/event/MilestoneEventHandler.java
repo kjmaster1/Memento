@@ -72,16 +72,17 @@ public class MilestoneEventHandler {
         if (milestone.replacementItem().isPresent()) {
             ItemStack newStack = milestone.replacementItem().get().copy();
 
-            if (milestone.keepStats() && stack.has(ModDataComponents.TRACKER_MAP)) {
-                newStack.set(ModDataComponents.TRACKER_MAP, stack.get(ModDataComponents.TRACKER_MAP));
+            if (milestone.keepStats()) {
+                // FIX: Use applyComponents to copy ALL data (Enchants, Name, Lore, Other Mod Data)
+                // instead of manually copying just Memento components.
+                // This ensures we don't wipe the item's history/identity during transformation.
+                newStack.applyComponents(stack.getComponents());
 
-                UnlockedMilestones currentUnlocked = stack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
+                // Ensure the NEW milestone is recorded (since we just unlocked it)
+                // It might not be in the old stack's components yet if this loop just added it.
+                UnlockedMilestones currentUnlocked = newStack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
                 currentUnlocked = currentUnlocked.add(milestoneId);
                 newStack.set(ModDataComponents.MILESTONES, currentUnlocked);
-
-                if (stack.has(ModDataComponents.ITEM_METADATA)) {
-                    newStack.set(ModDataComponents.ITEM_METADATA, stack.get(ModDataComponents.ITEM_METADATA));
-                }
             }
 
             boolean success = replaceItemInInventory(player, stack, newStack);

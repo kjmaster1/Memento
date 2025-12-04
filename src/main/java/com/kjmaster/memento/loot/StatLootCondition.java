@@ -29,11 +29,17 @@ public record StatLootCondition(ResourceLocation stat, MinMaxBounds.Ints range) 
     @Override
     public boolean test(LootContext context) {
         ItemStack tool = context.getParamOrNull(LootContextParams.TOOL);
-        if (tool == null || tool.isEmpty()) return false;
 
-        TrackerMap trackers = tool.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
-        long value = trackers.getValue(stat);
+        long value = 0L;
+        // If a tool is present, fetch the actual stat value.
+        // If tool is null (e.g. empty hand, environmental damage), value remains 0.
+        if (tool != null && !tool.isEmpty()) {
+            TrackerMap trackers = tool.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
+            value = trackers.getValue(stat);
+        }
 
+        // Check if the value (0 or actual) lies within the required range.
+        // This allows conditions like "max: 0" or "min: 0" to pass for non-tool kills.
         return range.matches((int) value);
     }
 

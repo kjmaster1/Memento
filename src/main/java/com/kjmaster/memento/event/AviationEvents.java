@@ -14,6 +14,9 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 public class AviationEvents {
 
+    // Threshold in cm (100 cm = 1 block/meter)
+    private static final int UPDATE_THRESHOLD = 100;
+
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
 
@@ -30,6 +33,13 @@ public class AviationEvents {
         // 3. Compare
         if (currentStat > previousStat) {
             int difference = currentStat - previousStat;
+
+            // PERFORMANCE: Throttle updates.
+            // Only commit to the Item Data Component if the change is significant (> 1 meter).
+            // This prevents creating new TrackerMap/HashMap objects every single tick while gliding.
+            if (difference < UPDATE_THRESHOLD) {
+                return;
+            }
 
             // Only count if the player is actually wearing an Elytra
             ItemStack chestItem = player.getItemBySlot(EquipmentSlot.CHEST);

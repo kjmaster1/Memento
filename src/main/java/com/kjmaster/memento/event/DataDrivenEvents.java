@@ -20,11 +20,11 @@ public class DataDrivenEvents {
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
 
-        List<StatTrigger> triggers = StatTriggerManager.get(StatTrigger.TriggerType.BLOCK_BREAK);
+        ItemStack stack = player.getMainHandItem();
+        // OPTIMIZATION: Use getTriggers with stack context
+        List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.BLOCK_BREAK, stack);
         if (triggers.isEmpty()) return;
 
-        ItemStack stack = player.getMainHandItem();
-        // Construct the context for Block Checks
         BlockInWorld blockCtx = new BlockInWorld(event.getLevel(), event.getPos(), true);
 
         for (StatTrigger trigger : triggers) {
@@ -43,10 +43,10 @@ public class DataDrivenEvents {
     public static void onEntityKill(LivingDeathEvent event) {
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
 
-        List<StatTrigger> triggers = StatTriggerManager.get(StatTrigger.TriggerType.ENTITY_KILL);
+        ItemStack stack = player.getMainHandItem();
+        List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.ENTITY_KILL, stack);
         if (triggers.isEmpty()) return;
 
-        ItemStack stack = player.getMainHandItem();
         Entity target = event.getEntity();
 
         for (StatTrigger trigger : triggers) {
@@ -69,22 +69,20 @@ public class DataDrivenEvents {
     public static void onItemUse(LivingEntityUseItemEvent.Finish event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        List<StatTrigger> triggers = StatTriggerManager.get(StatTrigger.TriggerType.ITEM_USE);
-        if (triggers.isEmpty()) return;
-
         ItemStack usedStack = event.getItem(); // The specific item (e.g., Steak)
 
         // Scan both hands to find the "Memento" item that wants to record this event
         for (ItemStack heldStack : player.getHandSlots()) {
             if (heldStack.isEmpty()) continue;
 
+            // Use heldStack for lookup, as triggers are usually bound to the item HOLDING the stat
+            List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.ITEM_USE, heldStack);
+
             for (StatTrigger trigger : triggers) {
                 // 1. Check Receiver (The item getting the stat)
-                // If the trigger specifies an item (e.g. "Gluttony Charm"), our held stack must match.
                 if (trigger.item().isPresent() && !trigger.item().get().test(heldStack)) continue;
 
                 // 2. Check Subject (The item being used)
-                // If the trigger specifies a subject (e.g. "Steak"), the used stack must match.
                 if (trigger.subjectItem().isPresent() && !trigger.subjectItem().get().test(usedStack)) continue;
 
                 MementoAPI.incrementStat(player, heldStack, trigger.stat(), trigger.amount());
@@ -96,12 +94,20 @@ public class DataDrivenEvents {
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        List<StatTrigger> triggers = StatTriggerManager.get(StatTrigger.TriggerType.BLOCK_PLACE);
+        ItemStack stack = player.getMainHandItem();
+
+        processPlaceTriggers(player, stack, event);
+
+        ItemStack offStack = player.getOffhandItem();
+        if (!offStack.isEmpty() && offStack != stack) {
+            processPlaceTriggers(player, offStack, event);
+        }
+    }
+
+    private static void processPlaceTriggers(ServerPlayer player, ItemStack stack, BlockEvent.EntityPlaceEvent event) {
+        List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.BLOCK_PLACE, stack);
         if (triggers.isEmpty()) return;
 
-        // For placement, we assume the item used is in the main hand or offhand.
-        // We check Main Hand first.
-        ItemStack stack = player.getMainHandItem();
         BlockInWorld blockCtx = new BlockInWorld(event.getLevel(), event.getPos(), true);
 
         for (StatTrigger trigger : triggers) {
@@ -109,16 +115,7 @@ public class DataDrivenEvents {
             if (trigger.block().isPresent() && !trigger.block().get().matches(blockCtx)) continue;
 
             // Check Item (Held)
-            // If main hand doesn't match, check offhand, as the player might have placed from offhand.
-            if (trigger.item().isPresent()) {
-                if (!trigger.item().get().test(stack)) {
-                    // Try Offhand
-                    stack = player.getOffhandItem();
-                    if (!trigger.item().get().test(stack)) {
-                        continue; // Neither hand matched the required item
-                    }
-                }
-            }
+            if (trigger.item().isPresent() && !trigger.item().get().test(stack)) continue;
 
             MementoAPI.incrementStat(player, stack, trigger.stat(), trigger.amount());
         }
@@ -129,10 +126,10 @@ public class DataDrivenEvents {
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
         if (event.isSimulated()) return; // Don't count simulation
 
-        List<StatTrigger> triggers = StatTriggerManager.get(StatTrigger.TriggerType.TOOL_MODIFICATION);
+        ItemStack stack = event.getHeldItemStack();
+        List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.TOOL_MODIFICATION, stack);
         if (triggers.isEmpty()) return;
 
-        ItemStack stack = event.getHeldItemStack();
         BlockInWorld blockCtx = new BlockInWorld(event.getContext().getLevel(), event.getContext().getClickedPos(), true);
 
         for (StatTrigger trigger : triggers) {

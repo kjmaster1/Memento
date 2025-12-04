@@ -10,6 +10,9 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+import java.util.Optional;
+
 public record StatEffect(
         ResourceLocation stat,
         long minInfo,
@@ -19,7 +22,8 @@ public record StatEffect(
         float chance,
         Target target,
         EffectContext context,       // WHEN does this apply?
-        EquipmentSlotGroup slots     // WHERE must the item be?
+        EquipmentSlotGroup slots,    // WHERE must the item be?
+        Optional<List<ResourceLocation>> optimizedItems // Explicit list of items for O(1) lookup
 ) {
     public enum Target implements StringRepresentable {
         USER, ATTACK_TARGET;
@@ -50,7 +54,8 @@ public record StatEffect(
             Codec.FLOAT.optionalFieldOf("chance", 1.0f).forGetter(StatEffect::chance),
             Codec.STRING.xmap(Target::valueOf, Target::name).optionalFieldOf("target", Target.ATTACK_TARGET).forGetter(StatEffect::target),
             EffectContext.CODEC.optionalFieldOf("context", EffectContext.ATTACK).forGetter(StatEffect::context),
-            EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatEffect::slots)
+            EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatEffect::slots),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("optimized_items").forGetter(StatEffect::optimizedItems)
     ).apply(instance, StatEffect::new));
 
     public MobEffectInstance createInstance() {
