@@ -15,7 +15,9 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -47,31 +49,49 @@ public class StatBufferManager {
      */
     public static void flush(ServerPlayer player) {
         Map<UUID, Map<ResourceLocation, Long>> pending = player.getData(ModDataAttachments.PENDING_STATS);
-        if (pending.isEmpty()) return;
 
-        // Reuse the consumer to avoid allocation
-        Consumer<ItemStack> applyFunction = stack -> applyPending(player, stack, pending);
+        // Track UUIDs encountered in this pass to detect duplicates (e.g. from Creative Pick Block)
+        Set<UUID> seenUuids = new HashSet<>();
+
+        Consumer<ItemStack> processor = stack -> {
+            if (stack.isEmpty()) return;
+            // Only care about items that actually HAVE a Memento UUID
+            if (!stack.has(ModDataComponents.ITEM_UUID)) return;
+
+            UUID uuid = stack.get(ModDataComponents.ITEM_UUID);
+
+            // 1. DUPLICATE CHECK [Identity Problem Fix]
+            if (seenUuids.contains(uuid)) {
+                // Identity Crisis: This item shares a UUID with one we already processed this tick.
+                // Action: Re-roll this item's UUID to sever the link.
+                stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+                // We do NOT apply pending stats to this duplicate.
+                return;
+            }
+            seenUuids.add(uuid);
+
+            // 2. BUFFER FLUSH
+            if (pending.containsKey(uuid)) {
+                applyPending(player, stack, pending);
+            }
+        };
 
         // 1. Scan Inventory (Main, Armor, Offhand)
         Inventory inv = player.getInventory();
-        inv.items.forEach(applyFunction);
-        inv.armor.forEach(applyFunction);
-        inv.offhand.forEach(applyFunction);
+        inv.items.forEach(processor);
+        inv.armor.forEach(processor);
+        inv.offhand.forEach(processor);
 
         // 2. Scan Curios
-        // OPTIMIZATION: Previously called SlotHelper.getAllWornItems(), which allocated a List
-        // AND re-scanned Armor/Offhand. Now we exclusively scan Curios slots.
-        SlotHelper.processCurios(player, (stack, slotIndex) -> applyFunction.accept(stack));
-
-        // Note: Any stats remaining in 'pending' belong to items that are currently
-        // not in the player's inventory (e.g. moved to a chest).
-        // We leave them in the buffer so they apply if the player picks the item back up later.
+        // Uses the optimized helper to avoid double-scanning Vanilla slots
+        SlotHelper.processCurios(player, (stack, slotIndex) -> processor.accept(stack));
     }
 
     private static void applyPending(ServerPlayer player, ItemStack stack, Map<UUID, Map<ResourceLocation, Long>> pending) {
-        if (stack.isEmpty() || !stack.has(ModDataComponents.ITEM_UUID)) return;
-
+        // Double check UUID existence (though processor checked it)
+        if (!stack.has(ModDataComponents.ITEM_UUID)) return;
         UUID uuid = stack.get(ModDataComponents.ITEM_UUID);
+
         if (pending.containsKey(uuid)) {
             Map<ResourceLocation, Long> stats = pending.get(uuid);
 
@@ -80,7 +100,9 @@ public class StatBufferManager {
                     MementoAPI.incrementStat(player, stack, statId, amount)
             );
 
-            // Remove from buffer to prevent double application
+            // Critical: Remove from buffer to prevent "ghost" applications if another item
+            // with this UUID (which somehow evaded detection) is found later,
+            // or simply to clear the buffer.
             pending.remove(uuid);
         }
     }
