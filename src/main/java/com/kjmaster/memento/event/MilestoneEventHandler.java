@@ -2,6 +2,7 @@ package com.kjmaster.memento.event;
 
 import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.api.event.StatChangeEvent;
+import com.kjmaster.memento.compat.CompatHandler;
 import com.kjmaster.memento.component.UnlockedMilestones;
 import com.kjmaster.memento.data.StatMilestone;
 import com.kjmaster.memento.data.StatMilestoneManager;
@@ -16,23 +17,16 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 public class MilestoneEventHandler {
-
-    private static final boolean CURIOS_LOADED = ModList.get().isLoaded("curios");
 
     @SubscribeEvent
     public static void onStatChange(StatChangeEvent.Post event) {
@@ -57,23 +51,16 @@ public class MilestoneEventHandler {
             }
 
             // TRANSACTIONAL LOGIC:
-            // We pass the current 'unlocked' state to performMilestone.
-            // It returns a Result indicating if it succeeded and if the stack was transformed.
-            // We only update the persistent state if successful.
             MilestoneResult result = performMilestone(player, stack, milestone, milestoneId, unlocked);
 
             if (result == MilestoneResult.FAILED) {
-                // Transformation failed (e.g. item missing/in bundle).
-                // Do NOT unlock the milestone; let the player try again later.
                 continue;
             }
 
             if (result == MilestoneResult.TRANSFORMED) {
-                // Item is gone/replaced. Stop processing for this specific item instance.
                 return;
             }
 
-            // Milestone applied to CURRENT item (no transform), so we update local state
             unlocked = unlocked.add(milestoneId);
             changed = true;
         }
@@ -96,12 +83,10 @@ public class MilestoneEventHandler {
 
             // Prepare the new stack
             if (milestone.keepStats()) {
-                // Copy all components to preserve identity/history
                 newStack.applyComponents(stack.getComponents());
             }
 
             // Mark milestone unlocked on the NEW stack immediately
-            // (Use a fresh lookup in case applyComponents overwrote it)
             UnlockedMilestones newUnlocked = newStack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
             newStack.set(ModDataComponents.MILESTONES, newUnlocked.add(milestoneId));
 
@@ -113,15 +98,13 @@ public class MilestoneEventHandler {
                 return MilestoneResult.FAILED;
             }
 
-            // If successful, we point 'stack' to the new item for visual toasts below
             stack = newStack;
         }
 
-        // 2. Visuals & Rewards (Safe to do now)
+        // 2. Visuals & Rewards
         if (milestone.titleName().isPresent()) {
             stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
 
-            // Send Toast
             ItemStack visualStack = createVisualCopy(stack);
             PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
                     visualStack,
@@ -150,20 +133,17 @@ public class MilestoneEventHandler {
 
     private static boolean replaceItemInInventory(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
         // 1. UUID Check (Robust)
-        // If the item has a UUID, we look for that specific UUID.
-        // This handles cases where the event system passed a copy, but the real item is in the inventory.
         if (oldStack.has(ModDataComponents.ITEM_UUID)) {
             UUID targetId = oldStack.get(ModDataComponents.ITEM_UUID);
             if (replaceByUuid(player, targetId, newStack)) return true;
         }
 
         // 2. Reference Equality Check (Fallback)
-        // If no UUID (legacy item?), try to find the exact object instance.
         if (replaceByReference(player, oldStack, newStack)) return true;
 
-        // 3. Modded/Curios Check
-        if (CURIOS_LOADED) {
-            return replaceCuriosItem(player, oldStack, newStack);
+        // 3. Modded Inventory Check (via CompatHandler)
+        if (CompatHandler.replaceModdedItem(player, oldStack, newStack)) {
+            return true;
         }
 
         return false;
@@ -172,8 +152,10 @@ public class MilestoneEventHandler {
     private static boolean replaceByUuid(ServerPlayer player, UUID targetId, ItemStack newStack) {
         Inventory inv = player.getInventory();
 
-        if (scanAndReplace(inv.items, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack)) return true;
-        if (scanAndReplace(inv.offhand, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack)) return true;
+        if (scanAndReplace(inv.items, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
+            return true;
+        if (scanAndReplace(inv.offhand, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
+            return true;
         return scanAndReplace(inv.armor, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack);
     }
 
@@ -184,7 +166,7 @@ public class MilestoneEventHandler {
         if (scanAndReplace(inv.offhand, s -> s == oldStack, newStack)) return true;
         if (scanAndReplace(inv.armor, s -> s == oldStack, newStack)) return true;
 
-        // Mouse carried item (e.g. holding item while crafting/in menu)
+        // Mouse carried item
         if (player.containerMenu != null && player.containerMenu.getCarried() == oldStack) {
             player.containerMenu.setCarried(newStack);
             return true;
@@ -203,42 +185,6 @@ public class MilestoneEventHandler {
         return false;
     }
 
-    private static boolean replaceCuriosItem(LivingEntity entity, ItemStack oldStack, ItemStack newStack) {
-        AtomicBoolean found = new AtomicBoolean(false);
-        try {
-            top.theillusivec4.curios.api.CuriosApi.getCuriosInventory(entity).ifPresent(handler -> {
-                var curiosHandler = handler.getEquippedCurios();
-                for (int i = 0; i < curiosHandler.getSlots(); i++) {
-                    ItemStack inSlot = curiosHandler.getStackInSlot(i);
-
-                    // Check UUID
-                    boolean match = false;
-                    if (oldStack.has(ModDataComponents.ITEM_UUID) && inSlot.has(ModDataComponents.ITEM_UUID)) {
-                        if (oldStack.get(ModDataComponents.ITEM_UUID).equals(inSlot.get(ModDataComponents.ITEM_UUID))) {
-                            match = true;
-                        }
-                    }
-                    // Fallback to reference
-                    else if (inSlot == oldStack) {
-                        match = true;
-                    }
-
-                    if (match) {
-                        curiosHandler.setStackInSlot(i, newStack);
-                        found.set(true);
-                        return;
-                    }
-                }
-            });
-        } catch (Exception e) {
-            Memento.LOGGER.error("Error attempting to replace item in Curios slot", e);
-        }
-        return found.get();
-    }
-
-    /**
-     * Creates a lightweight copy of the stack containing only components relevant for rendering.
-     */
     private static ItemStack createVisualCopy(ItemStack original) {
         ItemStack copy = new ItemStack(original.getItem());
 

@@ -88,9 +88,19 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
         if (lowestCap != -1) {
             int currentCost = this.cost.get();
-            if (currentCost >= 40) {
-                this.cost.set(39);
+
+            // Safety Logic:
+            // Only clamp the cost if we are applying a discount (cap < 39)
+            // OR if the cost is within vanilla bounds ( < 40 ).
+            // If the cost is >= 40 (Too Expensive) but the result exists, it means another mod (e.g. Easy Anvils)
+            // or Creative Mode is allowing it. In this case, we avoid undercutting the mod's pricing unless
+            // the cap is explicitly a "Discount" (low value).
+            if (currentCost > lowestCap) {
+                if (lowestCap < 39 || currentCost < 40) {
+                    this.cost.set(lowestCap);
+                }
             }
+
             int futureCost = result.getOrDefault(DataComponents.REPAIR_COST, 0);
             if (futureCost > lowestCap) {
                 result.set(DataComponents.REPAIR_COST, lowestCap);

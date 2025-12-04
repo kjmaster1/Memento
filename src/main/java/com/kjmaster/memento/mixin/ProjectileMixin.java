@@ -1,15 +1,14 @@
 package com.kjmaster.memento.mixin;
 
+import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.data.StatProjectileLogic;
 import com.kjmaster.memento.data.StatProjectileLogicManager;
 import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModDataComponents;
-import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.util.ItemContextHelper;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ProjectileWeaponItem;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -68,18 +67,16 @@ public abstract class ProjectileMixin {
 
     @Unique
     private ItemStack memento$findWeapon(LivingEntity living) {
+        // IMPROVEMENT: Prioritize the item currently being used (e.g. Bow being drawn, Trident being aimed)
+        // This is more reliable than hand scanning for items that have a "charging" state.
         ItemStack stack = living.getUseItem();
-        if (!stack.isEmpty() && stack.getItem() instanceof ProjectileWeaponItem) return stack;
+        if (!stack.isEmpty() && ItemContextHelper.isRangedWeapon(stack)) return stack;
 
-        stack = living.getMainHandItem();
-        if (!stack.isEmpty() && stack.getItem() instanceof ProjectileWeaponItem) return stack;
-
-        stack = living.getOffhandItem();
-        if (!stack.isEmpty() && stack.getItem() instanceof ProjectileWeaponItem) return stack;
-
+        // Fallback: Check Main Hand for any Ranged Weapon (e.g. Crossbows, Instant-cast wands)
         stack = living.getMainHandItem();
         if (!stack.isEmpty() && ItemContextHelper.isRangedWeapon(stack)) return stack;
 
+        // Fallback: Check Off Hand
         stack = living.getOffhandItem();
         if (!stack.isEmpty() && ItemContextHelper.isRangedWeapon(stack)) return stack;
 

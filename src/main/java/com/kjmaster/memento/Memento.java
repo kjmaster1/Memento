@@ -1,12 +1,10 @@
 package com.kjmaster.memento;
 
+import com.kjmaster.memento.compat.CompatHandler;
 import com.kjmaster.memento.data.*;
 import com.kjmaster.memento.event.*;
 import com.kjmaster.memento.data.StatMilestoneManager;
-import com.kjmaster.memento.registry.ModDataAttachments;
-import com.kjmaster.memento.registry.ModDataComponents;
-import com.kjmaster.memento.registry.ModLootConditionTypes;
-import com.kjmaster.memento.registry.ModRecipes;
+import com.kjmaster.memento.registry.*;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
@@ -30,11 +28,14 @@ public class Memento {
     public Memento(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
+        CompatHandler.init();
+
         // 1. Register (Mod Bus)
         ModDataComponents.COMPONENTS.register(modEventBus);
         ModDataAttachments.ATTACHMENT_TYPES.register(modEventBus);
         ModRecipes.SERIALIZERS.register(modEventBus);
         ModLootConditionTypes.LOOT_CONDITION_TYPES.register(modEventBus);
+        ModLootFunctionTypes.LOOT_FUNCTION_TYPES.register(modEventBus);
 
         // 2. Register Game Logic Events (Game Bus)
 
