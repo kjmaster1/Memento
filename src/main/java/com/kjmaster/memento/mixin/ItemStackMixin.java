@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -72,21 +73,25 @@ public abstract class ItemStackMixin {
         }
     }
 
-    @Inject(method = "hurtAndBreak(ILnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V", at = @At("HEAD"), cancellable = true)
-    private void memento$preventDamageIfMastered(int damage, ServerLevel level, @Nullable LivingEntity entity, Consumer<Object> onBreak, CallbackInfo ci) {
-        ItemStack stack = (ItemStack) (Object) this;
+    // SAFER: Instead of cancelling execution, we set the damage amount to 0.
+    // This allows other mods to still hook 'hurtAndBreak' if they need to triggers side effects.
+    @ModifyVariable(
+            method = "hurtAndBreak(ILnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V",
+            at = @At("HEAD"),
+            argsOnly = true
+    )
+    private int memento$preventDamageIfMastered(int amount) {
+        if (amount <= 0) return amount;
 
-        // Note: StatMasteryManager could also be optimized similar to VisualPrestige
-        // For now, we leave it as linear since mastery rules are typically very few.
+        ItemStack stack = (ItemStack) (Object) this;
         for (StatMastery rule : StatMasteryManager.getAllRules()) {
             if (rule.preventDamage()) {
                 long val = MementoAPI.getStat(stack, rule.stat());
                 if (val >= rule.value()) {
-                    // Item is Mastered! Prevent damage by cancelling the method call.
-                    ci.cancel();
-                    return;
+                    return 0; // Reduce damage to zero
                 }
             }
         }
+        return amount;
     }
 }

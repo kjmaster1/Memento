@@ -6,6 +6,7 @@ import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModStats;
 import com.kjmaster.memento.util.ItemContextHelper;
+import com.kjmaster.memento.util.ProjectileLogicHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
@@ -42,10 +43,40 @@ public class ContextEvents {
         }
     }
 
-    // --- Ranged: Shots Fired & Longest Shot ---
+    // --- Ranged: Shots Fired, Longest Shot & Ballistics ---
     @SubscribeEvent
     public static void onEntityJoin(EntityJoinLevelEvent event) {
         if (event.getEntity() instanceof Projectile projectile && !event.getLevel().isClientSide) {
+
+            // 1. BALLISTICS APPLICATION (Moved from ProjectileMixin)
+            // This runs for ANY projectile, ensuring compatibility with combat mods.
+            if (!projectile.getData(ModDataAttachments.BALLISTICS_APPLIED)) {
+
+                // Identify Weapon
+                ItemStack weapon = ItemStack.EMPTY;
+                if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
+                    weapon = projectile.getData(ModDataAttachments.SOURCE_STACK);
+                } else if (projectile.getOwner() instanceof ServerPlayer sp) {
+                    weapon = sp.getMainHandItem();
+                    if (!ItemContextHelper.isRangedWeapon(weapon)) weapon = sp.getOffhandItem();
+                }
+
+                if (!weapon.isEmpty()) {
+                    // Apply Velocity
+                    float velMult = ProjectileLogicHelper.getVelocityMultiplier(weapon);
+                    if (velMult != 1.0f) {
+                        projectile.setDeltaMovement(projectile.getDeltaMovement().scale(velMult));
+                    }
+
+                    // Apply Damage
+                    ProjectileLogicHelper.applyDamageModifier(weapon, projectile);
+
+                    // Mark applied so chunk reloading doesn't multiply it again
+                    projectile.setData(ModDataAttachments.BALLISTICS_APPLIED, true);
+                }
+            }
+
+            // 2. STAT TRACKING (Shots Fired)
             if (projectile.getOwner() instanceof ServerPlayer player) {
                 // Attach Origin Data for Longest Shot calculation later
                 if (Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) {
@@ -54,21 +85,16 @@ public class ContextEvents {
 
                 if (!Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) return;
 
-                // Identify the weapon using the Attachment (preferred) or Fallback
                 ItemStack activeItem = ItemStack.EMPTY;
-
                 if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
                     activeItem = projectile.getData(ModDataAttachments.SOURCE_STACK);
                 }
-
-                // Fallback if Mixin didn't catch it (unlikely but possible for some modded projectiles)
                 if (activeItem.isEmpty()) {
                     activeItem = player.getUseItem();
                     if (activeItem.isEmpty()) activeItem = player.getMainHandItem();
                 }
 
                 if (ItemContextHelper.isRangedWeapon(activeItem)) {
-                    // VALIDATION: Ensure the item is valid and present before updating
                     if (isItemInInventory(player, activeItem)) {
                         MementoAPI.incrementStat(player, activeItem, ModStats.SHOTS_FIRED, 1);
                     }

@@ -12,13 +12,15 @@ import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.BiFunction;
 
 public class MementoAPI {
 
     // Recursion guard to prevent infinite loops (e.g. Advancement -> Command -> Stat Change -> Advancement...)
-    // We use identityHashCode for the stack to target the specific item instance being processed.
-    private record RecursionKey(int stackIdentity, ResourceLocation statId) {}
+    // We use the Item's UUID to target the logical item instance being processed.
+    // This is robust against ItemStack cloning, which would bypass identityHashCode.
+    private record RecursionKey(UUID stackUuid, ResourceLocation statId) {}
     private static final ThreadLocal<Set<RecursionKey>> RECURSION_GUARD = ThreadLocal.withInitial(HashSet::new);
 
     // --- Standard Methods (Default: fireEvents = true) ---
@@ -52,16 +54,21 @@ public class MementoAPI {
     public static void updateStat(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value, BiFunction<Long, Long, Long> mergeFunction, boolean fireEvents) {
         // DESIGN DECISION:
         // We explicitly block stats on stackable items (max stack size > 1).
-        // Tracking stats on stackable items creates immense complexity regarding:
-        // 1. Splitting Stacks: Which half keeps the stats? Do we duplicate them?
-        // 2. Merging Stacks: Do we sum the kills? Average them?
-        // 3. Identity: Memento is designed for unique "Hero" items (swords, pickaxes), not commodities.
         if (stack.isEmpty() || stack.getMaxStackSize() > 1) return;
+
+        // 1. Ensure Identity [Ship of Theseus Fix]
+        // If the item lacks a UUID, assign one now. This ensures consistent identity
+        // across clones, event buses, and serialization.
+        if (!stack.has(ModDataComponents.ITEM_UUID)) {
+            stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+        }
+        // Retrieve the UUID (guaranteed to be present now)
+        UUID itemUuid = stack.get(ModDataComponents.ITEM_UUID);
 
         TrackerMap currentStats = stack.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
         long oldValue = currentStats.getValue(statId);
 
-        // 1. Calculate tentative new value (Dry Run) WITHOUT allocation [Optimization 3.1]
+        // 2. Calculate tentative new value (Dry Run) WITHOUT allocation [Optimization 3.1]
         // We manually apply the merge function to see if the value effectively changes
         long newValue = mergeFunction.apply(oldValue, value);
 
@@ -69,7 +76,8 @@ public class MementoAPI {
 
         // --- Recursion Guard Check ---
         // Prevents: Stat Change -> Event -> Advancement -> Function -> Stat Change (Infinite Loop)
-        RecursionKey key = new RecursionKey(System.identityHashCode(stack), statId);
+        // Using UUID ensures that if 'stack' is a clone (passed via event), we still catch the recursion.
+        RecursionKey key = new RecursionKey(itemUuid, statId);
         boolean isRecursive = RECURSION_GUARD.get().contains(key);
 
         // If we are recursive, we suppress events for this nested call to break the loop.
@@ -81,7 +89,7 @@ public class MementoAPI {
         }
 
         try {
-            // 2. Fire PRE Event (Cancellable)
+            // 3. Fire PRE Event (Cancellable)
             if (shouldFire) {
                 StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(player, stack, statId, oldValue, newValue);
                 if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
@@ -89,12 +97,12 @@ public class MementoAPI {
                 }
             }
 
-            // 3. Apply Change
+            // 4. Apply Change
             // We use a simple replacer function because we already calculated 'newValue'
             TrackerMap tentativeStats = currentStats.update(statId, newValue, (old, n) -> n);
             stack.set(ModDataComponents.TRACKER_MAP, tentativeStats);
 
-            // 4. Fire POST Event (Logic Hooks)
+            // 5. Fire POST Event (Logic Hooks)
             if (shouldFire) {
                 NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(player, stack, statId, oldValue, newValue));
             }

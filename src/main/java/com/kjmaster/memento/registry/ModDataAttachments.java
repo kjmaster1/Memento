@@ -31,4 +31,10 @@ public class ModDataAttachments {
             "source_stack",
             () -> AttachmentType.builder(() -> ItemStack.EMPTY).serialize(ItemStack.CODEC).build()
     );
+
+    // Prevents double-application of stats on chunk load
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> BALLISTICS_APPLIED = ATTACHMENT_TYPES.register(
+            "ballistics_applied",
+            () -> AttachmentType.builder(() -> false).serialize(Codec.BOOL).build()
+    );
 }
