@@ -6,7 +6,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 
 public class AdvancementEventHandler {
     @SubscribeEvent
-    public void onStatChange(StatChangeEvent.Post event) {
+    public static void onStatChange(StatChangeEvent.Post event) {
         ModCriteria.STAT_CHANGED.trigger(
                 event.getPlayer(),
                 event.getItem(),

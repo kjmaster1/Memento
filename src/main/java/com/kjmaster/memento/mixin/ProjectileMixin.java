@@ -1,5 +1,6 @@
 package com.kjmaster.memento.mixin;
 
+import com.kjmaster.memento.data.StatProjectileLogicManager;
 import com.kjmaster.memento.util.IMementoProjectile;
 import com.kjmaster.memento.util.ProjectileLogicHelper;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -41,6 +42,9 @@ public abstract class ProjectileMixin implements IMementoProjectile {
 
     @Inject(method = "shoot(DDDFF)V", at = @At("HEAD"))
     private void memento$onShootHead(double x, double y, double z, float velocity, float inaccuracy, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        // Optimization: Skip all logic if no rules are defined
+        if (StatProjectileLogicManager.getAllRules().isEmpty()) return;
+
         if (this.memento$isBallisticsApplied()) return;
 
         Projectile self = (Projectile) (Object) this;
@@ -57,6 +61,9 @@ public abstract class ProjectileMixin implements IMementoProjectile {
 
     @Inject(method = "shoot(DDDFF)V", at = @At("RETURN"))
     private void memento$onShootReturn(double x, double y, double z, float velocity, float inaccuracy, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        // Optimization: Skip all logic if no rules are defined
+        if (StatProjectileLogicManager.getAllRules().isEmpty()) return;
+
         if (this.memento$isBallisticsApplied()) return;
 
         Projectile self = (Projectile) (Object) this;
@@ -79,6 +86,12 @@ public abstract class ProjectileMixin implements IMementoProjectile {
 
     @Unique
     private void memento$applyLogic(Projectile instance, Entity shooter, float velocity, float inaccuracy, Operation<Void> original, double x, double y, double z) {
+        // Optimization: Skip all logic if no rules are defined
+        if (StatProjectileLogicManager.getAllRules().isEmpty()) {
+            original.call(instance, x, y, z, velocity, inaccuracy);
+            return;
+        }
+
         if (this.memento$isBallisticsApplied()) {
             original.call(instance, x, y, z, velocity, inaccuracy);
             return;

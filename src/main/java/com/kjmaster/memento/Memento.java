@@ -18,6 +18,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import org.slf4j.Logger;
 
+import java.util.List;
+
 @Mod(Memento.MODID)
 public class Memento {
     // Define mod id in a common place for everything to reference
@@ -36,11 +38,12 @@ public class Memento {
 
         // 2. Register Game Logic Events (Game Bus)
 
-        NeoForge.EVENT_BUS.register(new MilestoneEventHandler());
-        NeoForge.EVENT_BUS.register(new AdvancementEventHandler());
-        NeoForge.EVENT_BUS.register(new EffectEventHandler());
-        NeoForge.EVENT_BUS.register(new AttributeEventHandler());
-        NeoForge.EVENT_BUS.register(new EnchantmentEventHandler());
+        NeoForge.EVENT_BUS.register(MilestoneEventHandler.class);
+        NeoForge.EVENT_BUS.register(AdvancementEventHandler.class);
+        NeoForge.EVENT_BUS.register(EffectEventHandler.class);
+        NeoForge.EVENT_BUS.register(AttributeEventHandler.class);
+        NeoForge.EVENT_BUS.register(EnchantmentEventHandler.class);
+        NeoForge.EVENT_BUS.register(ItemUseEventHandler.class);
 
         NeoForge.EVENT_BUS.register(DataDrivenEvents.class);
         NeoForge.EVENT_BUS.register(MetadataEvents.class);
@@ -61,16 +64,18 @@ public class Memento {
     }
 
     private void addReloadListener(AddReloadListenerEvent event) {
-        event.addListener(new StatMilestoneManager());
-        event.addListener(new StatTriggerManager());
-        event.addListener(new StatAttributeManager());
-        event.addListener(new StatEffectManager());
-        event.addListener(new StatEnchantmentManager());
-        event.addListener(new StatRepairCapManager());
-        event.addListener(new StatBehaviorManager());
-        event.addListener(new StatUsageSpeedManager());
-        event.addListener(new StatProjectileLogicManager());
-        event.addListener(new StatVisualPrestigeManager());
-        event.addListener(new StatMasteryManager());
+        List.of(
+                new StatMilestoneManager(),
+                new StatTriggerManager(),
+                new StatAttributeManager(),
+                new StatEffectManager(),
+                new StatEnchantmentManager(),
+                new StatRepairCapManager(),
+                new StatBehaviorManager(),
+                new StatUsageSpeedManager(),
+                new StatProjectileLogicManager(),
+                new StatVisualPrestigeManager(),
+                new StatMasteryManager()
+        ).forEach(event::addListener);
     }
 }

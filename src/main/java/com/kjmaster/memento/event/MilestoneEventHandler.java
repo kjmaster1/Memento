@@ -1,5 +1,6 @@
 package com.kjmaster.memento.event;
 
+import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.api.event.StatChangeEvent;
 import com.kjmaster.memento.component.UnlockedMilestones;
 import com.kjmaster.memento.data.StatMilestone;
@@ -15,20 +16,25 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MilestoneEventHandler {
 
+    private static final boolean CURIOS_LOADED = ModList.get().isLoaded("curios");
+
     @SubscribeEvent
-    public void onStatChange(StatChangeEvent.Post event) {
+    public static void onStatChange(StatChangeEvent.Post event) {
         checkMilestones(event.getPlayer(), event.getItem(), event.getStatId(), event.getNewValue());
     }
 
-    private void checkMilestones(ServerPlayer player, ItemStack stack, ResourceLocation statId, long newValue) {
+    private static void checkMilestones(ServerPlayer player, ItemStack stack, ResourceLocation statId, long newValue) {
         List<StatMilestone> milestones = StatMilestoneManager.getMilestonesFor(statId);
         if (milestones.isEmpty()) return;
 
@@ -38,76 +44,66 @@ public class MilestoneEventHandler {
         for (StatMilestone milestone : milestones) {
             String milestoneId = statId.toString() + "/" + milestone.targetValue();
 
-            // 1. Check Unlocked
             if (unlocked.hasUnlocked(milestoneId)) continue;
             if (newValue < milestone.targetValue()) continue;
 
-            // 2. Check Item Requirement
-            // If the JSON specifies "diamond_sword", don't evolve a "wooden_sword"
             if (milestone.itemRequirement().isPresent()) {
                 if (!milestone.itemRequirement().get().test(stack)) continue;
             }
 
-            // 3. Unlock & Execute
             unlocked = unlocked.add(milestoneId);
             changed = true;
 
-            // Pass the milestone ID so we can avoid re-triggering it on the new item if we copy data
-            performMilestone(player, stack, milestone, milestoneId);
+            boolean transformed = performMilestone(player, stack, milestone, milestoneId);
 
-            // If we transformed the item, we must STOP processing other milestones
-            // because the original 'stack' is now invalid/gone.
-            if (milestone.replacementItem().isPresent()) {
-                break;
+            if (transformed) {
+                return;
             }
         }
 
-        // Only update the map if we didn't transform the item (if transformed, the old stack is gone)
         if (changed && !stack.isEmpty()) {
             stack.set(ModDataComponents.MILESTONES, unlocked);
         }
     }
 
-    private void performMilestone(ServerPlayer player, ItemStack stack, StatMilestone milestone, String milestoneId) {
+    private static boolean performMilestone(ServerPlayer player, ItemStack stack, StatMilestone milestone, String milestoneId) {
+        boolean transformed = false;
+
         if (milestone.replacementItem().isPresent()) {
             ItemStack newStack = milestone.replacementItem().get().copy();
 
-            // Copy Stats?
             if (milestone.keepStats() && stack.has(ModDataComponents.TRACKER_MAP)) {
                 newStack.set(ModDataComponents.TRACKER_MAP, stack.get(ModDataComponents.TRACKER_MAP));
 
-                // CRITICAL: We must also copy the "Unlocked Milestones" so the new item doesn't
-                // immediately re-trigger the same evolution loop if it still meets the criteria.
                 UnlockedMilestones currentUnlocked = stack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
-                // Ensure THIS milestone is marked as unlocked on the new item
                 currentUnlocked = currentUnlocked.add(milestoneId);
                 newStack.set(ModDataComponents.MILESTONES, currentUnlocked);
 
-                // Copy Metadata (Creator/Date)
                 if (stack.has(ModDataComponents.ITEM_METADATA)) {
                     newStack.set(ModDataComponents.ITEM_METADATA, stack.get(ModDataComponents.ITEM_METADATA));
                 }
             }
 
-            // Find and Replace in Inventory
-            replaceItemInInventory(player, stack, newStack);
+            boolean success = replaceItemInInventory(player, stack, newStack);
 
-            // Update the local variable 'stack' to reference the new item for the Toast/Sound logic below
-            stack = newStack;
+            if (success) {
+                stack = newStack;
+                transformed = true;
+            } else {
+                Memento.LOGGER.warn("Failed to apply milestone transformation for player {}: Could not locate original item instance.", player.getName().getString());
+                return false;
+            }
         }
 
-        // Title
         if (milestone.titleName().isPresent()) {
             stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
-            // If transformed, we probably want to inform the player
             PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
                     stack,
-                    Component.translatable("memento.toast.levelup"), // Or "memento.toast.evolved"
+                    Component.translatable("memento.toast.levelup"),
                     milestone.titleName().get()
             ));
         }
 
-        // Sound
         if (milestone.soundId().isPresent()) {
             ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
             SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
@@ -116,31 +112,74 @@ public class MilestoneEventHandler {
             }
         }
 
-        // Commands
         if (!milestone.rewards().isEmpty()) {
             CommandSourceStack source = player.createCommandSourceStack().withPermission(2).withSuppressedOutput();
             for (String command : milestone.rewards()) {
                 player.server.getCommands().performPrefixedCommand(source, command);
             }
         }
+
+        return transformed;
     }
 
-    private void replaceItemInInventory(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
-        // 1. Check Hands
-        if (player.getMainHandItem() == oldStack) {
-            player.setItemSlot(EquipmentSlot.MAINHAND, newStack);
-            return;
-        }
-        if (player.getOffhandItem() == oldStack) {
-            player.setItemSlot(EquipmentSlot.OFFHAND, newStack);
-            return;
+    private static boolean replaceItemInInventory(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (player.getItemBySlot(slot) == oldStack) {
+                player.setItemSlot(slot, newStack);
+                return true;
+            }
         }
 
-        // 2. Scan Inventory
-        // (Note: == comparison works because 'oldStack' is the exact instance from the event)
-        int slot = player.getInventory().findSlotMatchingItem(oldStack);
-        if (slot != -1) {
-            player.getInventory().setItem(slot, newStack);
+        if (player.containerMenu != null && player.containerMenu.getCarried() == oldStack) {
+            player.containerMenu.setCarried(newStack);
+            return true;
         }
+
+        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.items.size(); i++) {
+            if (inv.items.get(i) == oldStack) {
+                inv.items.set(i, newStack);
+                return true;
+            }
+        }
+        for (int i = 0; i < inv.offhand.size(); i++) {
+            if (inv.offhand.get(i) == oldStack) {
+                inv.offhand.set(i, newStack);
+                return true;
+            }
+        }
+        for (int i = 0; i < inv.armor.size(); i++) {
+            if (inv.armor.get(i) == oldStack) {
+                inv.armor.set(i, newStack);
+                return true;
+            }
+        }
+
+        if (CURIOS_LOADED) {
+            if (replaceCuriosItem(player, oldStack, newStack)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean replaceCuriosItem(LivingEntity entity, ItemStack oldStack, ItemStack newStack) {
+        AtomicBoolean found = new AtomicBoolean(false);
+        try {
+            top.theillusivec4.curios.api.CuriosApi.getCuriosInventory(entity).ifPresent(handler -> {
+                var curiosHandler = handler.getEquippedCurios();
+                for (int i = 0; i < curiosHandler.getSlots(); i++) {
+                    if (curiosHandler.getStackInSlot(i) == oldStack) {
+                        curiosHandler.setStackInSlot(i, newStack);
+                        found.set(true);
+                        return;
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Memento.LOGGER.error("Error attempting to replace item in Curios slot", e);
+        }
+        return found.get();
     }
 }

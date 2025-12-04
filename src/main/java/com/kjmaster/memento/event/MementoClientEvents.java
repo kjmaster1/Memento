@@ -1,5 +1,7 @@
 package com.kjmaster.memento.event;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.kjmaster.memento.client.StatDefinition;
 import com.kjmaster.memento.client.StatDefinitionManager;
 import com.kjmaster.memento.client.tooltip.StatBarComponent;
@@ -17,9 +19,24 @@ import net.neoforged.neoforge.client.event.RenderTooltipEvent;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 public class MementoClientEvents {
+
+    // Cache to prevent recalculating tooltips every render frame.
+    // TrackerMap is a Record, so it has a stable hashCode based on its content.
+    private static final Cache<TrackerMap, List<MutableComponent>> TOOLTIP_CACHE = CacheBuilder.newBuilder()
+            .maximumSize(1000)
+            .expireAfterAccess(5, TimeUnit.MINUTES)
+            .build();
+
+    public static void clearCache() {
+        TOOLTIP_CACHE.invalidateAll();
+    }
 
     @SubscribeEvent
     public static void onTooltip(ItemTooltipEvent event) {
@@ -44,33 +61,48 @@ public class MementoClientEvents {
             TrackerMap trackers = event.getItemStack().get(ModDataComponents.TRACKER_MAP);
             if (trackers == null || trackers.stats().isEmpty()) return;
 
-            for (Map.Entry<ResourceLocation, Long> entry : trackers.stats().entrySet()) {
-                ResourceLocation statId = entry.getKey();
-                Long rawValue = entry.getValue();
-
-                StatDefinition def = StatDefinitionManager.get(statId);
-
-                // SKIPPING BAR MODE: We handle bars in the GatherComponents event
-                if (def.displayMode().orElse("text").equals("bar")) {
-                    continue;
-                }
-
-                String valueString = getValueString(rawValue, def);
-
-                String translationKey = "stat." + statId.getNamespace() + "." + statId.getPath();
-                ChatFormatting valueColor = def.color().orElse(ChatFormatting.WHITE);
-
-                MutableComponent line = Component.translatable(translationKey)
-                        .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(": "))
-                        .append(Component.literal(valueString).withStyle(valueColor));
-
-                event.getToolTip().add(line);
+            try {
+                // Use cache to avoid heavy string formatting and map lookups every frame
+                List<MutableComponent> lines = TOOLTIP_CACHE.get(trackers, () -> computeStatLines(trackers));
+                event.getToolTip().addAll(lines);
+            } catch (ExecutionException e) {
+                // Fallback in case of cache error
+                event.getToolTip().addAll(computeStatLines(trackers));
             }
+
         } else {
             event.getToolTip().add(Component.translatable("tooltip.memento.hold_shift")
                     .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
         }
+    }
+
+    private static List<MutableComponent> computeStatLines(TrackerMap trackers) {
+        List<MutableComponent> lines = new ArrayList<>();
+
+        for (Map.Entry<ResourceLocation, Long> entry : trackers.stats().entrySet()) {
+            ResourceLocation statId = entry.getKey();
+            Long rawValue = entry.getValue();
+
+            StatDefinition def = StatDefinitionManager.get(statId);
+
+            // SKIPPING BAR MODE: We handle bars in the GatherComponents event
+            if (def.displayMode().orElse("text").equals("bar")) {
+                continue;
+            }
+
+            String valueString = getValueString(rawValue, def);
+
+            String translationKey = "stat." + statId.getNamespace() + "." + statId.getPath();
+            ChatFormatting valueColor = def.color().orElse(ChatFormatting.WHITE);
+
+            MutableComponent line = Component.translatable(translationKey)
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(": "))
+                    .append(Component.literal(valueString).withStyle(valueColor));
+
+            lines.add(line);
+        }
+        return lines;
     }
 
     private static @NotNull String getValueString(Long rawValue, StatDefinition def) {

@@ -1,5 +1,10 @@
 package com.kjmaster.memento.crafting;
 
+import com.kjmaster.memento.component.ItemMetadata;
+import com.kjmaster.memento.component.TrackerMap;
+import com.kjmaster.memento.component.UnlockedMilestones;
+import com.kjmaster.memento.data.StatBehavior;
+import com.kjmaster.memento.data.StatBehaviorManager;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModRecipes;
 import com.mojang.serialization.Codec;
@@ -9,10 +14,16 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class PreserveStatsRecipe implements CraftingRecipe {
     private final CraftingRecipe delegate;
@@ -50,25 +61,61 @@ public class PreserveStatsRecipe implements CraftingRecipe {
     public @NotNull ItemStack assemble(@NotNull CraftingInput input, HolderLookup.@NotNull Provider registries) {
         ItemStack result = delegate.assemble(input, registries);
 
-        // Find the "primary" ingredient to copy stats from.
+        // Mutable containers for merging
+        Map<ResourceLocation, Long> mergedStats = new HashMap<>();
+        Set<String> mergedMilestones = new HashSet<>();
+        ItemMetadata primaryMeta = null;
+
         for (int i = 0; i < input.size(); i++) {
             ItemStack ingredient = input.getItem(i);
+
+            // 1. Merge Stats
             if (ingredient.has(ModDataComponents.TRACKER_MAP)) {
-                // Copy Tracker Map
-                result.set(ModDataComponents.TRACKER_MAP, ingredient.get(ModDataComponents.TRACKER_MAP));
+                TrackerMap map = ingredient.get(ModDataComponents.TRACKER_MAP);
+                if (map != null) {
+                    for (Map.Entry<ResourceLocation, Long> entry : map.stats().entrySet()) {
+                        ResourceLocation stat = entry.getKey();
+                        long value = entry.getValue();
 
-                // Copy Metadata (Created By, Date)
-                if (ingredient.has(ModDataComponents.ITEM_METADATA)) {
-                    result.set(ModDataComponents.ITEM_METADATA, ingredient.get(ModDataComponents.ITEM_METADATA));
+                        mergedStats.merge(stat, value, (oldVal, newVal) -> {
+                            StatBehavior.MergeStrategy strategy = StatBehaviorManager.getStrategy(stat);
+                            return switch (strategy) {
+                                case MAX -> Math.max(oldVal, newVal);
+                                case MIN -> Math.min(oldVal, newVal);
+                                case SUM -> oldVal + newVal;
+                            };
+                        });
+                    }
                 }
+            }
 
-                // Copy Unlocked Milestones
-                if (ingredient.has(ModDataComponents.MILESTONES)) {
-                    result.set(ModDataComponents.MILESTONES, ingredient.get(ModDataComponents.MILESTONES));
+            // 2. Merge Milestones
+            if (ingredient.has(ModDataComponents.MILESTONES)) {
+                UnlockedMilestones milestones = ingredient.get(ModDataComponents.MILESTONES);
+                if (milestones != null) {
+                    mergedMilestones.addAll(milestones.milestones());
                 }
-                break;
+            }
+
+            // 3. Preserve Metadata (Keep from the first valid ingredient found)
+            if (primaryMeta == null && ingredient.has(ModDataComponents.ITEM_METADATA)) {
+                primaryMeta = ingredient.get(ModDataComponents.ITEM_METADATA);
             }
         }
+
+        // Apply merged data to result
+        if (!mergedStats.isEmpty()) {
+            result.set(ModDataComponents.TRACKER_MAP, new TrackerMap(mergedStats));
+        }
+
+        if (!mergedMilestones.isEmpty()) {
+            result.set(ModDataComponents.MILESTONES, new UnlockedMilestones(mergedMilestones));
+        }
+
+        if (primaryMeta != null) {
+            result.set(ModDataComponents.ITEM_METADATA, primaryMeta);
+        }
+
         return result;
     }
 

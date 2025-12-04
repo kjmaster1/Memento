@@ -18,36 +18,6 @@ import java.util.function.Consumer;
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
 
-    @Inject(method = "getUseDuration", at = @At("RETURN"), cancellable = true)
-    private void memento$modifyUseDuration(LivingEntity entity, CallbackInfoReturnable<Integer> cir) {
-        // 1. Get original duration (e.g. 32 for food, 72000 for bow)
-        int original = cir.getReturnValue();
-        if (original <= 0) return;
-
-        // Cast 'this' to ItemStack to inspect stats
-        ItemStack stack = (ItemStack) (Object) this;
-
-        double multiplier = 1.0;
-        boolean changed = false;
-
-        // 2. Iterate rules and apply multipliers
-        // (We multiply them together: 0.5 * 0.5 = 0.25 speed)
-        for (StatUsageSpeed rule : StatUsageSpeedManager.getAllRules()) {
-            long val = MementoAPI.getStat(stack, rule.stat());
-            if (val >= rule.minInfo()) {
-                multiplier *= rule.multiplier();
-                changed = true;
-            }
-        }
-
-        // 3. Return modified value
-        if (changed) {
-            // Ensure we don't go below 1 tick (instant usage can sometimes cause logic issues)
-            int newDuration = (int) Math.max(1, original * multiplier);
-            cir.setReturnValue(newDuration);
-        }
-    }
-
     @Inject(method = "getRarity", at = @At("RETURN"), cancellable = true)
     private void memento$modifyRarity(CallbackInfoReturnable<Rarity> cir) {
         ItemStack stack = (ItemStack) (Object) this;

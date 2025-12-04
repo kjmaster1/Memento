@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
+import com.kjmaster.memento.event.MementoClientEvents;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -33,6 +34,8 @@ public class StatDefinitionManager extends SimpleJsonResourceReloadListener {
                     .ifPresent(def -> DEFINITIONS.put(statId, def));
         }
         Memento.LOGGER.info("Loaded {} stat definitions", DEFINITIONS.size());
+
+        MementoClientEvents.clearCache();
     }
 
     public static StatDefinition get(ResourceLocation statId) {
