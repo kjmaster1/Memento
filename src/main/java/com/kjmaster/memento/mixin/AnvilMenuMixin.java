@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Map;
 
-@Mixin(AnvilMenu.class)
+@Mixin(value = AnvilMenu.class, priority = 2000)
 public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
     @Shadow @Final private DataSlot cost;

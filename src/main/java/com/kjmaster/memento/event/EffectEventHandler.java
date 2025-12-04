@@ -19,11 +19,12 @@ public class EffectEventHandler {
 
     @SubscribeEvent
     public static void onLivingDamage(LivingDamageEvent.Post event) {
-        if (event.getSource().getEntity() instanceof ServerPlayer attacker) {
+        // Broadened to LivingEntity
+        if (event.getSource().getEntity() instanceof LivingEntity attacker) {
             applyContext(attacker, event.getEntity(), StatEffect.EffectContext.ATTACK);
         }
 
-        if (event.getEntity() instanceof ServerPlayer defender) {
+        if (event.getEntity() instanceof LivingEntity defender) {
             LivingEntity attacker = (event.getSource().getEntity() instanceof LivingEntity le) ? le : null;
             applyContext(defender, attacker, StatEffect.EffectContext.DEFEND);
         }
@@ -31,13 +32,14 @@ public class EffectEventHandler {
 
     @SubscribeEvent
     public static void onLivingDeath(LivingDeathEvent event) {
-        if (event.getSource().getEntity() instanceof ServerPlayer killer) {
+        if (event.getSource().getEntity() instanceof LivingEntity killer) {
             applyContext(killer, event.getEntity(), StatEffect.EffectContext.KILL);
         }
     }
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        // BreakEvent is typically player-only, but we can check
         if (event.getPlayer() instanceof ServerPlayer player) {
             applyContext(player, null, StatEffect.EffectContext.MINE);
         }
@@ -52,11 +54,11 @@ public class EffectEventHandler {
         }
     }
 
-    private static void applyContext(ServerPlayer user, LivingEntity target, StatEffect.EffectContext context) {
+    // Now accepts generic LivingEntity
+    private static void applyContext(LivingEntity user, LivingEntity target, StatEffect.EffectContext context) {
         for (SlotHelper.SlotContext slotCtx : SlotHelper.getAllWornItems(user)) {
             ItemStack stack = slotCtx.stack();
 
-            // OPTIMIZATION: Only fetch rules that are Global OR specific to this Item
             List<StatEffect> rules = StatEffectManager.getRules(context, stack);
             if (rules.isEmpty()) continue;
 

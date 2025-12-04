@@ -1,23 +1,21 @@
 package com.kjmaster.memento.mixin;
 
 import com.kjmaster.memento.api.MementoAPI;
-import com.kjmaster.memento.data.*;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.LivingEntity;
+import com.kjmaster.memento.data.StatMastery;
+import com.kjmaster.memento.data.StatMasteryManager;
+import com.kjmaster.memento.data.StatVisualPrestige;
+import com.kjmaster.memento.data.StatVisualPrestigeManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
-import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
-import java.util.function.Consumer;
 
-@Mixin(ItemStack.class)
+@Mixin(value = ItemStack.class, priority = 2000)
 public abstract class ItemStackMixin {
 
     @Inject(method = "getRarity", at = @At("RETURN"), cancellable = true)

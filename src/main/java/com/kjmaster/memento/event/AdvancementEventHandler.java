@@ -7,11 +7,13 @@ import net.neoforged.bus.api.SubscribeEvent;
 public class AdvancementEventHandler {
     @SubscribeEvent
     public static void onStatChange(StatChangeEvent.Post event) {
-        ModCriteria.STAT_CHANGED.trigger(
-                event.getPlayer(),
-                event.getItem(),
-                event.getStatId(),
-                event.getNewValue()
-        );
+        if (event.getPlayer() != null) {
+            ModCriteria.STAT_CHANGED.trigger(
+                    event.getPlayer(),
+                    event.getItem(),
+                    event.getStatId(),
+                    event.getNewValue()
+            );
+        }
     }
 }

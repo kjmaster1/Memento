@@ -17,6 +17,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -30,10 +32,11 @@ public class MilestoneEventHandler {
 
     @SubscribeEvent
     public static void onStatChange(StatChangeEvent.Post event) {
-        checkMilestones(event.getPlayer(), event.getItem(), event.getStatId(), event.getNewValue());
+        // Now accepts any LivingEntity
+        checkMilestones(event.getEntity(), event.getItem(), event.getStatId(), event.getNewValue());
     }
 
-    private static void checkMilestones(ServerPlayer player, ItemStack stack, ResourceLocation statId, long newValue) {
+    private static void checkMilestones(LivingEntity entity, ItemStack stack, ResourceLocation statId, long newValue) {
         List<StatMilestone> milestones = StatMilestoneManager.getMilestonesFor(statId);
         if (milestones.isEmpty()) return;
 
@@ -50,8 +53,7 @@ public class MilestoneEventHandler {
                 if (!milestone.itemRequirement().get().test(stack)) continue;
             }
 
-            // TRANSACTIONAL LOGIC:
-            MilestoneResult result = performMilestone(player, stack, milestone, milestoneId, unlocked);
+            MilestoneResult result = performMilestone(entity, stack, milestone, milestoneId, unlocked);
 
             if (result == MilestoneResult.FAILED) {
                 continue;
@@ -71,107 +73,140 @@ public class MilestoneEventHandler {
     }
 
     private enum MilestoneResult {
-        SUCCESS,        // Applied (Sound/Toast only)
-        TRANSFORMED,    // Item replaced successfully
-        FAILED          // Critical failure (e.g. could not find item to replace)
+        SUCCESS,
+        TRANSFORMED,
+        FAILED
     }
 
-    private static MilestoneResult performMilestone(ServerPlayer player, ItemStack stack, StatMilestone milestone, String milestoneId, UnlockedMilestones currentUnlocked) {
-        // 1. Handle Transformation (Highest Priority & Risk)
+    private static MilestoneResult performMilestone(LivingEntity entity, ItemStack stack, StatMilestone milestone, String milestoneId, UnlockedMilestones currentUnlocked) {
+        // 1. Handle Transformation (Works for all Entities)
         if (milestone.replacementItem().isPresent()) {
             ItemStack newStack = milestone.replacementItem().get().copy();
 
-            // Prepare the new stack
             if (milestone.keepStats()) {
                 newStack.applyComponents(stack.getComponents());
             }
 
-            // Mark milestone unlocked on the NEW stack immediately
             UnlockedMilestones newUnlocked = newStack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
             newStack.set(ModDataComponents.MILESTONES, newUnlocked.add(milestoneId));
 
-            // Attempt Replacement
-            boolean success = replaceItemInInventory(player, stack, newStack);
+            // Polymorphic replacement
+            boolean success = replaceItem(entity, stack, newStack);
 
             if (!success) {
-                Memento.LOGGER.warn("Failed to transform item for player {}: Item not found in mutable inventory.", player.getName().getString());
+                Memento.LOGGER.warn("Failed to transform item for entity {}: Item not found.", entity.getName().getString());
                 return MilestoneResult.FAILED;
             }
 
             stack = newStack;
         }
 
-        // 2. Visuals & Rewards
-        if (milestone.titleName().isPresent()) {
-            stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
+        // --- Player Only Effects ---
+        if (entity instanceof ServerPlayer player) {
 
-            ItemStack visualStack = createVisualCopy(stack);
-            PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
-                    visualStack,
-                    Component.translatable("memento.toast.levelup"),
-                    milestone.titleName().get()
-            ));
-        }
+            // 2. Visuals & Rewards
+            if (milestone.titleName().isPresent()) {
+                stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
 
-        if (milestone.soundId().isPresent()) {
-            ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
-            SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-            if (sound != null) {
-                player.level().playSound(null, player.blockPosition(), sound, SoundSource.PLAYERS, 1.0f, 1.0f);
+                ItemStack visualStack = createVisualCopy(stack);
+                PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
+                        visualStack,
+                        Component.translatable("memento.toast.levelup"),
+                        milestone.titleName().get()
+                ));
             }
-        }
 
-        if (!milestone.rewards().isEmpty()) {
-            CommandSourceStack source = player.createCommandSourceStack().withPermission(2).withSuppressedOutput();
-            for (String command : milestone.rewards()) {
-                player.server.getCommands().performPrefixedCommand(source, command);
+            if (milestone.soundId().isPresent()) {
+                ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
+                SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                if (sound != null) {
+                    player.level().playSound(null, player.blockPosition(), sound, SoundSource.PLAYERS, 1.0f, 1.0f);
+                }
+            }
+
+            if (!milestone.rewards().isEmpty()) {
+                CommandSourceStack source = player.createCommandSourceStack().withPermission(2).withSuppressedOutput();
+                for (String command : milestone.rewards()) {
+                    player.server.getCommands().performPrefixedCommand(source, command);
+                }
+            }
+        } else {
+            // For non-players, simple Sound support at location
+            if (milestone.soundId().isPresent()) {
+                ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
+                SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                if (sound != null) {
+                    entity.level().playSound(null, entity.blockPosition(), sound, SoundSource.NEUTRAL, 1.0f, 1.0f);
+                }
             }
         }
 
         return milestone.replacementItem().isPresent() ? MilestoneResult.TRANSFORMED : MilestoneResult.SUCCESS;
     }
 
-    private static boolean replaceItemInInventory(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
-        // 1. UUID Check (Robust)
+    /**
+     * Unified replacement logic for any LivingEntity.
+     */
+    private static boolean replaceItem(LivingEntity entity, ItemStack oldStack, ItemStack newStack) {
+        // 1. UUID Check
         if (oldStack.has(ModDataComponents.ITEM_UUID)) {
             UUID targetId = oldStack.get(ModDataComponents.ITEM_UUID);
-            if (replaceByUuid(player, targetId, newStack)) return true;
+            if (replaceByUuid(entity, targetId, newStack)) return true;
         }
 
-        // 2. Reference Equality Check (Fallback)
-        if (replaceByReference(player, oldStack, newStack)) return true;
+        // 2. Reference Check
+        if (replaceByReference(entity, oldStack, newStack)) return true;
 
-        // 3. Modded Inventory Check (via CompatHandler)
-        if (CompatHandler.replaceModdedItem(player, oldStack, newStack)) {
-            return true;
+        // 3. Modded Inventory Check (Player only usually)
+        if (entity instanceof ServerPlayer player) {
+            if (CompatHandler.replaceModdedItem(player, oldStack, newStack)) {
+                return true;
+            }
         }
 
         return false;
     }
 
-    private static boolean replaceByUuid(ServerPlayer player, UUID targetId, ItemStack newStack) {
-        Inventory inv = player.getInventory();
-
-        if (scanAndReplace(inv.items, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
-            return true;
-        if (scanAndReplace(inv.offhand, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
-            return true;
-        return scanAndReplace(inv.armor, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack);
+    private static boolean replaceByUuid(LivingEntity entity, UUID targetId, ItemStack newStack) {
+        if (entity instanceof ServerPlayer player) {
+            // Use full inventory scan for Players
+            Inventory inv = player.getInventory();
+            if (scanAndReplace(inv.items, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
+                return true;
+            if (scanAndReplace(inv.offhand, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack))
+                return true;
+            return scanAndReplace(inv.armor, s -> s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId), newStack);
+        } else {
+            // Use EquipmentSlot scan for Mobs
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                ItemStack s = entity.getItemBySlot(slot);
+                if (s.has(ModDataComponents.ITEM_UUID) && s.get(ModDataComponents.ITEM_UUID).equals(targetId)) {
+                    entity.setItemSlot(slot, newStack);
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
-    private static boolean replaceByReference(ServerPlayer player, ItemStack oldStack, ItemStack newStack) {
-        Inventory inv = player.getInventory();
-
-        if (scanAndReplace(inv.items, s -> s == oldStack, newStack)) return true;
-        if (scanAndReplace(inv.offhand, s -> s == oldStack, newStack)) return true;
-        if (scanAndReplace(inv.armor, s -> s == oldStack, newStack)) return true;
-
-        // Mouse carried item
-        if (player.containerMenu != null && player.containerMenu.getCarried() == oldStack) {
-            player.containerMenu.setCarried(newStack);
-            return true;
+    private static boolean replaceByReference(LivingEntity entity, ItemStack oldStack, ItemStack newStack) {
+        if (entity instanceof ServerPlayer player) {
+            Inventory inv = player.getInventory();
+            if (scanAndReplace(inv.items, s -> s == oldStack, newStack)) return true;
+            if (scanAndReplace(inv.offhand, s -> s == oldStack, newStack)) return true;
+            if (scanAndReplace(inv.armor, s -> s == oldStack, newStack)) return true;
+            if (player.containerMenu != null && player.containerMenu.getCarried() == oldStack) {
+                player.containerMenu.setCarried(newStack);
+                return true;
+            }
+        } else {
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                if (entity.getItemBySlot(slot) == oldStack) {
+                    entity.setItemSlot(slot, newStack);
+                    return true;
+                }
+            }
         }
-
         return false;
     }
 
@@ -185,6 +220,7 @@ public class MilestoneEventHandler {
         return false;
     }
 
+    // ... createVisualCopy and copyComponent methods remain unchanged ...
     private static ItemStack createVisualCopy(ItemStack original) {
         ItemStack copy = new ItemStack(original.getItem());
 

@@ -26,8 +26,9 @@ public class EnchantmentEventHandler {
         ItemEnchantments.Mutable newEnchants = new ItemEnchantments.Mutable(currentEnchants);
         boolean changed = false;
 
+        var registryAccess = event.getEntity().registryAccess();
+
         for (StatEnchantment rule : rules) {
-            var registryAccess = event.getPlayer().registryAccess();
             var enchantRegistry = registryAccess.lookupOrThrow(Registries.ENCHANTMENT);
             var enchantKey = ResourceKey.create(Registries.ENCHANTMENT, rule.enchantment());
             var enchantHolder = enchantRegistry.get(enchantKey);

@@ -1,7 +1,7 @@
 package com.kjmaster.memento.event;
 
 import com.kjmaster.memento.Config;
-import com.kjmaster.memento.api.MementoAPI;
+import com.kjmaster.memento.data.StatBufferManager;
 import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModStats;
 import com.kjmaster.memento.util.ItemContextHelper;
@@ -35,8 +35,6 @@ public class AviationEvents {
             int difference = currentStat - previousStat;
 
             // PERFORMANCE: Throttle updates.
-            // Only commit to the Item Data Component if the change is significant (> 1 meter).
-            // This prevents creating new TrackerMap/HashMap objects every single tick while gliding.
             if (difference < UPDATE_THRESHOLD) {
                 return;
             }
@@ -44,13 +42,14 @@ public class AviationEvents {
             // Only count if the player is actually wearing an Elytra
             ItemStack chestItem = player.getItemBySlot(EquipmentSlot.CHEST);
             if (ItemContextHelper.isElytra(chestItem, player)) {
-                MementoAPI.incrementStat(player, chestItem, ModStats.DISTANCE_FLOWN, difference);
+                // OPTIMIZATION: Use Buffer Manager instead of direct API call
+                // This prevents re-creating the Data Component map on every meter flown.
+                StatBufferManager.bufferStat(player, chestItem, ModStats.DISTANCE_FLOWN, difference);
             }
 
             // Update the attachment with the new current value
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
         }
-        // Sync edge case: If stat reset (unlikely in vanilla but possible), update our tracker down
         else if (currentStat < previousStat) {
             player.setData(ModDataAttachments.LAST_AVIATE_VALUE, currentStat);
         }
