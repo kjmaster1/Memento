@@ -79,7 +79,7 @@ public class ContextEvents {
                     if (!weapon.has(ModDataComponents.ITEM_UUID)) {
                         weapon.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
                     }
-                    projectile.setData(ModDataAttachments.SOURCE_STACK, weapon);
+                    projectile.setData(ModDataAttachments.SOURCE_STACK, weapon.copy());
                 }
             }
 

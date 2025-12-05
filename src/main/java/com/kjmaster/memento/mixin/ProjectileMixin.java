@@ -44,7 +44,7 @@ public abstract class ProjectileMixin {
                     if (!weapon.has(ModDataComponents.ITEM_UUID)) {
                         weapon.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
                     }
-                    self.setData(ModDataAttachments.SOURCE_STACK, weapon);
+                    self.setData(ModDataAttachments.SOURCE_STACK, weapon.copy());
                 }
             }
         }
