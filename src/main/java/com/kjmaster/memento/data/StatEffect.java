@@ -30,6 +30,7 @@ public record StatEffect(
 ) {
     public enum Target implements StringRepresentable {
         USER, ATTACK_TARGET;
+        public static final Codec<Target> CODEC = StringRepresentable.fromEnum(Target::values);
         @Override public @NotNull String getSerializedName() { return name().toLowerCase(); }
     }
 
@@ -46,7 +47,7 @@ public record StatEffect(
             Codec.INT.optionalFieldOf("duration", 100).forGetter(StatEffect::durationTicks),
             Codec.INT.optionalFieldOf("amplifier", 0).forGetter(StatEffect::amplifier),
             Codec.FLOAT.optionalFieldOf("chance", 1.0f).forGetter(StatEffect::chance),
-            Codec.STRING.xmap(Target::valueOf, Target::name).optionalFieldOf("target", Target.ATTACK_TARGET).forGetter(StatEffect::target),
+            Target.CODEC.optionalFieldOf("target", Target.ATTACK_TARGET).forGetter(StatEffect::target),
             EffectContext.CODEC.optionalFieldOf("context", EffectContext.ATTACK).forGetter(StatEffect::context),
             EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatEffect::slots),
             RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatEffect::items)
