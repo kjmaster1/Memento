@@ -1,5 +1,6 @@
 package com.kjmaster.memento.data;
 
+import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.network.StatRegistryPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -15,14 +16,8 @@ public class StatRegistryManager {
     private static final List<ResourceLocation> SORTED_STATS = new ArrayList<>();
 
     public static void reload() {
-        Set<ResourceLocation> allStats = new HashSet<>();
 
-        // Collect stats from Behavior Manager (Primary Source)
-        // We assume StatBehaviorManager is loaded before this runs (assured by event ordering or explicit call)
-        // Since we can't easily access the private map in StatBehaviorManager without an accessor,
-        // we might need to modify StatBehaviorManager to expose keys, or rely on a public getter.
-        // For now, let's assume we modify StatBehaviorManager to expose 'getKnownStats()'.
-        allStats.addAll(StatBehaviorManager.getKnownStats());
+        Set<ResourceLocation> allStats = new HashSet<>(StatBehaviorManager.getKnownStats());
 
         // Sort for deterministic ID assignment
         SORTED_STATS.clear();
@@ -36,6 +31,15 @@ public class StatRegistryManager {
         }
 
         StatRegistry.setMapping(map);
+    }
+
+    /**
+     * Called by the StatRegistryPayload handler to synchronize the client's network ID mapping.
+     * This ensures the client has the correct ID-to-Stat mapping before processing any item stacks.
+     */
+    public static void syncClient(Map<ResourceLocation, Integer> mapping) {
+        StatRegistry.setMapping(mapping);
+        Memento.LOGGER.info("Memento Stat Registry Synced: {} unique stats loaded.", mapping.size());
     }
 
     @SubscribeEvent

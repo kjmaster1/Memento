@@ -4,6 +4,7 @@ import com.kjmaster.memento.client.MilestoneToast;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.data.StatBehavior;
 import com.kjmaster.memento.data.StatBehaviorManager;
+import com.kjmaster.memento.data.StatRegistryManager;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.util.SlotHelper;
 import net.minecraft.client.Minecraft;
@@ -21,6 +22,16 @@ public class ClientPayloadHandler {
             Minecraft.getInstance().getToasts().addToast(
                     new MilestoneToast(payload.item(), payload.title(), payload.description())
             );
+        });
+    }
+
+    /**
+     * Handles the Stat Registry Sync packet.
+     * This updates the client's internal ID mapping to match the server's.
+     */
+    public static void handleStatRegistryPayload(final StatRegistryPayload payload, final IPayloadContext context) {
+        context.enqueueWork(() -> {
+            StatRegistryManager.syncClient(payload.mapping());
         });
     }
 
@@ -43,7 +54,7 @@ public class ClientPayloadHandler {
                     TrackerMap newMap = map.update(payload.stat(), payload.value(), (oldVal, newVal) -> switch (strategy) {
                         case MAX -> Math.max(oldVal, newVal);
                         case MIN -> (oldVal == 0) ? newVal : Math.min(oldVal, newVal);
-                        case SUM -> oldVal + newVal;
+                        case SUM, AVERAGE -> oldVal + newVal;
                     });
 
                     stack.set(ModDataComponents.TRACKER_MAP, newMap);

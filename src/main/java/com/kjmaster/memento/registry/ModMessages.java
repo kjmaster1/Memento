@@ -35,5 +35,11 @@ public class ModMessages {
                 StatRegistryPayload.STREAM_CODEC,
                 StatRegistryPayload::handle
         );
+
+        registrar.configurationToClient(
+                StatRegistryPayload.TYPE,
+                StatRegistryPayload.STREAM_CODEC,
+                ClientPayloadHandler::handleStatRegistryPayload
+        );
     }
 }
