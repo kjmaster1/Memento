@@ -76,7 +76,7 @@ public class Memento {
 
     private void addReloadListener(AddReloadListenerEvent event) {
         List.of(
-                new StatMilestoneManager(),
+                new StatMilestoneManager(event.getRegistryAccess()),
                 new StatTriggerManager(),
                 new StatAttributeManager(),
                 new StatEffectManager(),

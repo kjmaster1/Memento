@@ -25,14 +25,12 @@ public class ModDataAttachments {
     );
 
     // Stores the last known value of the "Aviate One cm" statistic for a player
-    // Default value is 0. We use Codec.INT for serialization.
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Integer>> LAST_AVIATE_VALUE = ATTACHMENT_TYPES.register(
             "last_aviate_value",
             () -> AttachmentType.builder(() -> 0).serialize(Codec.INT).build()
     );
 
     // Stores the weapon ItemStack that fired a projectile.
-    // We use ItemStack.EMPTY as the default.
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemStack>> SOURCE_STACK = ATTACHMENT_TYPES.register(
             "source_stack",
             () -> AttachmentType.builder(() -> ItemStack.EMPTY).serialize(ItemStack.CODEC).build()
@@ -44,10 +42,15 @@ public class ModDataAttachments {
             () -> AttachmentType.builder(() -> false).serialize(Codec.BOOL).build()
     );
 
+    // Fix: We define a mutable Inner Codec first to ensure the stat map is a HashMap
+    private static final Codec<Map<ResourceLocation, Long>> MUTABLE_STAT_MAP = Codec.unboundedMap(ResourceLocation.CODEC, Codec.LONG)
+            .xmap(HashMap::new, HashMap::new);
+
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Map<UUID, Map<ResourceLocation, Long>>>> PENDING_STATS = ATTACHMENT_TYPES.register(
             "pending_stats",
             () -> AttachmentType.builder(() -> (Map<UUID, Map<ResourceLocation, Long>>) new HashMap<UUID, Map<ResourceLocation, Long>>())
-                    .serialize(Codec.unboundedMap(UUIDUtil.CODEC, Codec.unboundedMap(ResourceLocation.CODEC, Codec.LONG)))
+                    // Fix: Use xmap on the Outer Codec as well to ensure the top-level map is a HashMap
+                    .serialize(Codec.unboundedMap(UUIDUtil.CODEC, MUTABLE_STAT_MAP).xmap(HashMap::new, HashMap::new))
                     .build()
     );
 }

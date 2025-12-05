@@ -5,6 +5,7 @@ import com.kjmaster.memento.data.StatAttribute;
 import com.kjmaster.memento.data.StatAttributeManager;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
@@ -86,7 +87,7 @@ public class AttributeEventHandler {
                 );
 
                 newModifiers.add(
-                        Holder.direct(rule.attribute()),
+                        BuiltInRegistries.ATTRIBUTE.wrapAsHolder(rule.attribute()),
                         modifier,
                         rule.slots()
                 );

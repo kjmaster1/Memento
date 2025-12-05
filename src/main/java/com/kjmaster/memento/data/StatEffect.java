@@ -64,6 +64,6 @@ public record StatEffect(
     ).apply(instance, StatEffect::new));
 
     public MobEffectInstance createInstance() {
-        return new MobEffectInstance(Holder.direct(effect), durationTicks, amplifier);
+        return new MobEffectInstance(BuiltInRegistries.MOB_EFFECT.wrapAsHolder(effect), durationTicks, amplifier);
     }
 }
