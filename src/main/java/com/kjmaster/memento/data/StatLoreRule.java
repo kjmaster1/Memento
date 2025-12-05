@@ -15,7 +15,8 @@ public record StatLoreRule(
         Optional<Component> namePrefix,
         Optional<Component> nameSuffix,
         int priority,
-        boolean hidden // If true, shows "???" when conditions are NOT met
+        boolean hidden,
+        Optional<List<ResourceLocation>> items
 ) {
     public static final Codec<StatLoreRule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Condition.CODEC.listOf().fieldOf("conditions").forGetter(StatLoreRule::conditions),
@@ -23,7 +24,8 @@ public record StatLoreRule(
             ComponentSerialization.CODEC.optionalFieldOf("name_prefix").forGetter(StatLoreRule::namePrefix),
             ComponentSerialization.CODEC.optionalFieldOf("name_suffix").forGetter(StatLoreRule::nameSuffix),
             Codec.INT.optionalFieldOf("priority", 0).forGetter(StatLoreRule::priority),
-            Codec.BOOL.optionalFieldOf("hidden", false).forGetter(StatLoreRule::hidden)
+            Codec.BOOL.optionalFieldOf("hidden", false).forGetter(StatLoreRule::hidden),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatLoreRule::items)
     ).apply(instance, StatLoreRule::new));
 
     public record Condition(ResourceLocation stat, long min) {

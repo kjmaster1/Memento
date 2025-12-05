@@ -77,7 +77,7 @@ public class Memento {
     private void addReloadListener(AddReloadListenerEvent event) {
         List.of(
                 new StatMilestoneManager(event.getRegistryAccess()),
-                new StatTriggerManager(),
+                new StatTriggerManager(event.getRegistryAccess()),
                 new StatAttributeManager(),
                 new StatEffectManager(),
                 new StatEnchantmentManager(),
@@ -87,13 +87,13 @@ public class Memento {
                 new StatProjectileLogicManager(),
                 new StatVisualPrestigeManager(),
                 new StatMasteryManager(),
-                new StatTransferFilterManager(),
-                new StatRequirementManager(),
+                new StatTransferFilterManager(event.getRegistryAccess()),
+                new StatRequirementManager(event.getRegistryAccess()),
                 new StatLoreManager(),
                 new StatEchoManager(),
-                new StatTierManager(),
+                new StatTierManager(event.getRegistryAccess()),
                 new StatSynergyManager(),
-                new StatDecayManager()
+                new StatDecayManager(event.getRegistryAccess())
         ).forEach(event::addListener);
     }
 }

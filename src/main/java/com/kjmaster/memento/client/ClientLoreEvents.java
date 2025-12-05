@@ -8,6 +8,7 @@ import com.kjmaster.memento.data.StatLoreManager;
 import com.kjmaster.memento.data.StatLoreRule;
 import com.kjmaster.memento.registry.ModDataComponents;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
@@ -67,6 +68,13 @@ public class ClientLoreEvents {
         boolean nameModified = false;
 
         for (StatLoreRule rule : StatLoreManager.getAllRules()) {
+
+            if (rule.items().isPresent()) {
+                if (!rule.items().get().contains(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                    continue;
+                }
+            }
+
             boolean conditionMet = true;
 
             // Check all conditions

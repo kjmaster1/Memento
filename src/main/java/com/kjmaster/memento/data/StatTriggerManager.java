@@ -5,7 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -29,8 +31,11 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
     // Indexed triggers (O(1) lookup by Item)
     private static final Map<StatTrigger.TriggerType, Map<Item, List<StatTrigger>>> INDEXED_TRIGGERS = new HashMap<>();
 
-    public StatTriggerManager() {
+    private final HolderLookup.Provider registries;
+
+    public StatTriggerManager(HolderLookup.Provider registries) {
         super(GSON, "stat_triggers");
+        this.registries = registries;
     }
 
     @Override
@@ -40,8 +45,10 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
 
         int count = 0;
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatTrigger.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatTrigger.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse trigger {}: {}", entry.getKey(), err))
                     .ifPresent(trigger -> {
                         if (trigger.optimizedItems().isPresent() && !trigger.optimizedItems().get().isEmpty()) {
@@ -52,9 +59,6 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
                                 Item item = BuiltInRegistries.ITEM.get(itemId);
 
                                 // Check for AIR fallback.
-                                // If the registry returns AIR, but the ID wasn't explicitly "minecraft:air",
-                                // it means the item is missing (e.g. mod uninstalled).
-                                // We must SKIP these to prevent them from attaching to the Empty Hand.
                                 if (item == Items.AIR && !itemId.equals(ResourceLocation.withDefaultNamespace("air"))) {
                                     Memento.LOGGER.debug("Skipping trigger for missing item: {}", itemId);
                                     continue;
@@ -72,10 +76,6 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
         Memento.LOGGER.info("Loaded {} stat triggers ({} indexed)", count, count - GLOBAL_TRIGGERS.values().stream().mapToInt(List::size).sum());
     }
 
-    /**
-     * Retrieves all triggers applicable to the given context.
-     * Combines O(1) indexed triggers with O(N) global triggers.
-     */
     public static List<StatTrigger> getTriggers(StatTrigger.TriggerType type, ItemStack stack) {
         List<StatTrigger> results = new ArrayList<>();
 

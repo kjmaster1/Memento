@@ -10,28 +10,25 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+import java.util.Optional;
+
 public record StatAttribute(
-        ResourceLocation stat,          // The stat to check
-        Attribute attribute,            // The attribute to modify
-        ResourceLocation modifierId,    // Unique ID for this modifier
+        ResourceLocation stat,
+        Attribute attribute,
+        ResourceLocation modifierId,
         AttributeModifier.Operation operation,
-        double valuePerStat,            // Coefficient (Multiplier)
-        double maxBonus,                // Cap the bonus
-        EquipmentSlotGroup slots,       // Mainhand, offhand, etc.
-        ScalingFunction scalingFunction,// Linear, Log, Exp
-        double exponent                 // Used for Exponential scaling (default 1.0)
+        double valuePerStat,
+        double maxBonus,
+        EquipmentSlotGroup slots,
+        ScalingFunction scalingFunction,
+        double exponent,
+        Optional<List<ResourceLocation>> items // NEW FIELD
 ) {
     public enum ScalingFunction implements StringRepresentable {
-        LINEAR,
-        LOGARITHMIC,
-        EXPONENTIAL;
-
+        LINEAR, LOGARITHMIC, EXPONENTIAL;
         public static final Codec<ScalingFunction> CODEC = StringRepresentable.fromEnum(ScalingFunction::values);
-
-        @Override
-        public @NotNull String getSerializedName() {
-            return name().toLowerCase();
-        }
+        @Override public @NotNull String getSerializedName() { return name().toLowerCase(); }
     }
 
     public static final Codec<StatAttribute> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -43,6 +40,7 @@ public record StatAttribute(
             Codec.DOUBLE.optionalFieldOf("max_bonus", Double.MAX_VALUE).forGetter(StatAttribute::maxBonus),
             EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatAttribute::slots),
             ScalingFunction.CODEC.optionalFieldOf("scaling_function", ScalingFunction.LINEAR).forGetter(StatAttribute::scalingFunction),
-            Codec.DOUBLE.optionalFieldOf("exponent", 1.0).forGetter(StatAttribute::exponent)
+            Codec.DOUBLE.optionalFieldOf("exponent", 1.0).forGetter(StatAttribute::exponent),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatAttribute::items) // NEW FIELD
     ).apply(instance, StatAttribute::new));
 }

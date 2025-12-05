@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -20,8 +22,12 @@ public class StatTierManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final List<StatTierRule> RULES = new ArrayList<>();
 
-    public StatTierManager() {
+    // Field to hold registry access
+    private final HolderLookup.Provider registries;
+
+    public StatTierManager(HolderLookup.Provider registries) {
         super(GSON, "stat_tiers");
+        this.registries = registries;
     }
 
     @Override
@@ -29,8 +35,12 @@ public class StatTierManager extends SimpleJsonResourceReloadListener {
         RULES.clear();
         int count = 0;
 
+        // Create RegistryOps using the stored registries
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatTierRule.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            // Use registryOps instead of JsonOps.INSTANCE
+            StatTierRule.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse tier rule {}: {}", entry.getKey(), err))
                     .ifPresent(RULES::add);
             count++;
@@ -39,8 +49,6 @@ public class StatTierManager extends SimpleJsonResourceReloadListener {
     }
 
     public static List<StatTierRule> getApplicableRules(ItemStack stack) {
-        // Linear scan is acceptable here as HarvestCheck is not per-tick (only on block interaction)
-        // Optimization: In a real scenario, index this by Item
         List<StatTierRule> matching = new ArrayList<>();
         for (StatTierRule rule : RULES) {
             if (rule.item().test(stack)) {

@@ -9,7 +9,9 @@ import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.util.SlotHelper;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -29,8 +31,11 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     private static final List<StatRequirement> GLOBAL_RULES = new ArrayList<>();
     private static final Map<Item, List<StatRequirement>> INDEXED_RULES = new HashMap<>();
 
-    public StatRequirementManager() {
+    private final HolderLookup.Provider registries;
+
+    public StatRequirementManager(HolderLookup.Provider registries) {
         super(GSON, "stat_requirements");
+        this.registries = registries;
     }
 
     @Override
@@ -38,8 +43,10 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
         GLOBAL_RULES.clear();
         INDEXED_RULES.clear();
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatRequirement.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatRequirement.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse restriction rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
                         // If optimization is requested, index it
@@ -61,21 +68,17 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
         );
     }
 
-    /**
-     * Checks if the player is allowed to use the given stack.
-     * @return Optional.empty() if allowed, or Optional containing the error message key if denied.
-     */
+    // ... (keep checkRestriction, checkRules, checkInventory, checkSourceItem, FoundItemException as is)
+
     public static Optional<String> checkRestriction(Player player, ItemStack stack) {
         if (stack.isEmpty()) return Optional.empty();
 
-        // 1. Check Indexed Rules (O(1)) - Highly efficient
         List<StatRequirement> indexed = INDEXED_RULES.get(stack.getItem());
         if (indexed != null) {
             Optional<String> result = checkRules(player, stack, indexed);
             if (result.isPresent()) return result;
         }
 
-        // 2. Check Global Rules (O(N)) - Only iterate if absolutely necessary
         if (!GLOBAL_RULES.isEmpty()) {
             return checkRules(player, stack, GLOBAL_RULES);
         }
@@ -85,16 +88,13 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
 
     private static Optional<String> checkRules(Player player, ItemStack stack, List<StatRequirement> rules) {
         for (StatRequirement rule : rules) {
-            // Predicate check matches the item to the rule
             if (rule.restrictedItem().test(stack)) {
                 boolean passed = false;
 
                 if (rule.scope() == StatRequirement.RequirementScope.SELF) {
-                    // Check the item itself (Fast)
                     long val = MementoAPI.getStat(stack, rule.stat());
                     if (val >= rule.min()) passed = true;
                 } else {
-                    // Check inventory for a source item (Slower, but only runs if rule matches)
                     passed = checkInventory(player, rule);
                 }
 
@@ -107,13 +107,10 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     }
 
     private static boolean checkInventory(Player player, StatRequirement rule) {
-        // 1. Scan main inventory
         for (ItemStack item : player.getInventory().items) {
             if (checkSourceItem(item, rule)) return true;
         }
 
-        // 2. Scan Vanilla Equipment Slots (Armor, Offhand)
-        // Explicit loop avoids lambda/array allocation
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = player.getItemBySlot(slot);
             if (!stack.isEmpty() && checkSourceItem(stack, rule)) {
@@ -121,8 +118,6 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        // 3. Scan Curios (via SlotHelper to handle mod dependency safely)
-        // Uses stackless exception for control flow to avoid boolean array allocation
         try {
             SlotHelper.processCurios(player, (stack, idx) -> {
                 if (checkSourceItem(stack, rule)) {
@@ -139,19 +134,16 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     private static boolean checkSourceItem(ItemStack stack, StatRequirement rule) {
         if (stack.isEmpty()) return false;
 
-        // Must match the "Source" predicate (e.g. "is a Stone Pickaxe")
         if (rule.sourceMatcher().isPresent() && !rule.sourceMatcher().get().test(stack)) {
             return false;
         }
 
-        // Must have the stat
         if (!stack.has(ModDataComponents.TRACKER_MAP)) return false;
 
         TrackerMap map = stack.get(ModDataComponents.TRACKER_MAP);
         return map.getValue(rule.stat()) >= rule.min();
     }
 
-    // Optimization: Stackless exception used solely for breaking out of the Curios lambda loop.
     private static final class FoundItemException extends RuntimeException {
         public static final FoundItemException INSTANCE = new FoundItemException();
         private FoundItemException() {

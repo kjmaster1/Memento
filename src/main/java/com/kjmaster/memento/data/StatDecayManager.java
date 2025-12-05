@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -20,8 +22,11 @@ public class StatDecayManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final Map<StatDecayRule.Trigger, List<StatDecayRule>> RULES = new HashMap<>();
 
-    public StatDecayManager() {
+    private final HolderLookup.Provider registries;
+
+    public StatDecayManager(HolderLookup.Provider registries) {
         super(GSON, "stat_decay");
+        this.registries = registries;
     }
 
     @Override
@@ -29,8 +34,10 @@ public class StatDecayManager extends SimpleJsonResourceReloadListener {
         RULES.clear();
         int count = 0;
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatDecayRule.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatDecayRule.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse decay rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
                         RULES.computeIfAbsent(rule.trigger(), k -> new ArrayList<>()).add(rule);
