@@ -19,129 +19,156 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 public class StatTransferRecipe implements CraftingRecipe {
 
     public StatTransferRecipe() {
     }
 
-    @Override
-    public boolean matches(CraftingInput input, @NotNull Level level) {
-        boolean hasCrystal = false;
-        boolean hasTool = false;
-
-        for (int i = 0; i < input.size(); i++) {
-            ItemStack stack = input.getItem(i);
-            if (stack.isEmpty()) continue;
-
-            if (stack.getItem() instanceof MementoCrystalItem) {
-                if (hasCrystal) return false;
-                hasCrystal = true;
-            } else if (stack.has(ModDataComponents.TRACKER_MAP) || stack.isDamageableItem()) {
-                if (hasTool) return false;
-                hasTool = true;
-            } else {
-                return false;
-            }
+    /**
+     * Helper record to identify valid inputs from the crafting grid.
+     */
+    private record TransferContext(ItemStack crystal, int crystalIdx, ItemStack tool, int toolIdx) {
+        public boolean isValid() {
+            return !crystal.isEmpty() && !tool.isEmpty();
         }
-        return hasCrystal && hasTool;
     }
 
-    @Override
-    public @NotNull ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
+    /**
+     * Scans the grid to find a unique Memento Crystal and a unique Tool.
+     * Returns an invalid context if duplicates or extra items are found.
+     */
+    private TransferContext findInputs(CraftingInput input) {
         ItemStack crystal = ItemStack.EMPTY;
+        int crystalIdx = -1;
         ItemStack tool = ItemStack.EMPTY;
+        int toolIdx = -1;
+        int itemCount = 0;
 
         for (int i = 0; i < input.size(); i++) {
             ItemStack stack = input.getItem(i);
             if (stack.isEmpty()) continue;
-            if (stack.getItem() instanceof MementoCrystalItem) crystal = stack;
-            else tool = stack;
+            itemCount++;
+
+            if (stack.getItem() instanceof MementoCrystalItem) {
+                if (!crystal.isEmpty()) return new TransferContext(ItemStack.EMPTY, -1, ItemStack.EMPTY, -1); // Duplicate crystal
+                crystal = stack;
+                crystalIdx = i;
+            } else if (stack.has(ModDataComponents.TRACKER_MAP) || stack.isDamageableItem()) {
+                if (!tool.isEmpty()) return new TransferContext(ItemStack.EMPTY, -1, ItemStack.EMPTY, -1); // Duplicate tool
+                tool = stack;
+                toolIdx = i;
+            } else {
+                return new TransferContext(ItemStack.EMPTY, -1, ItemStack.EMPTY, -1); // Foreign item
+            }
         }
 
-        if (crystal.isEmpty() || tool.isEmpty()) return ItemStack.EMPTY;
+        if (itemCount != 2 || crystal.isEmpty() || tool.isEmpty()) {
+            return new TransferContext(ItemStack.EMPTY, -1, ItemStack.EMPTY, -1);
+        }
+
+        return new TransferContext(crystal, crystalIdx, tool, toolIdx);
+    }
+
+    /**
+     * Holds the calculated output and the remaining items in the grid.
+     */
+    private record RecipeResult(ItemStack result, NonNullList<ItemStack> remaining) {}
+
+    /**
+     * Central logic for both matching and assembly.
+     * Calculates what the result WOULD be, checking all filters and conditions.
+     */
+    private Optional<RecipeResult> calculateResult(CraftingInput input) {
+        TransferContext ctx = findInputs(input);
+        if (!ctx.isValid()) return Optional.empty();
+
+        ItemStack crystal = ctx.crystal;
+        ItemStack tool = ctx.tool;
 
         TrackerMap crystalStats = crystal.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
         TrackerMap toolStats = tool.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
 
-        // MODE 1: SIPHON (Tool -> Crystal)
+        // Prepare remaining list (defaults to all empty)
+        NonNullList<ItemStack> remaining = NonNullList.withSize(input.size(), ItemStack.EMPTY);
+
+        // --- MODE 1: SIPHON (Tool -> Crystal) ---
+        // Requirement: Crystal must be empty, Tool must have stats.
         if (crystalStats.stats().isEmpty() && !toolStats.stats().isEmpty()) {
-            ItemStack resultCrystal = crystal.copy();
             Map<ResourceLocation, Long> filteredStats = new HashMap<>();
 
-            ItemStack finalTool = tool;
+            // Check filters: Only transfer allowed stats
             toolStats.stats().forEach((stat, val) -> {
-                if (StatTransferFilterManager.isAllowed(finalTool, stat)) {
+                if (StatTransferFilterManager.isAllowed(tool, stat)) {
                     filteredStats.put(stat, val);
                 }
             });
 
-            if (filteredStats.isEmpty()) return ItemStack.EMPTY;
+            // STRICT CHECK: If filters blocked everything, the recipe fails.
+            if (filteredStats.isEmpty()) return Optional.empty();
 
+            // 1. Output: Filled Crystal
+            ItemStack resultCrystal = crystal.copy();
+            resultCrystal.setCount(1);
             resultCrystal.set(ModDataComponents.TRACKER_MAP, new TrackerMap(filteredStats));
-            return resultCrystal;
+
+            // 2. Remaining: Wiped Tool (stays in grid)
+            ItemStack wipedTool = tool.copy();
+            wipedTool.setCount(1);
+            wipedTool.remove(ModDataComponents.TRACKER_MAP);
+
+            remaining.set(ctx.toolIdx, wipedTool);
+
+            return Optional.of(new RecipeResult(resultCrystal, remaining));
         }
 
-        // MODE 2: APPLY (Crystal -> Tool)
+        // --- MODE 2: APPLY (Crystal -> Tool) ---
+        // Requirement: Crystal must have stats.
         if (!crystalStats.stats().isEmpty()) {
-            ItemStack resultTool = tool.copy();
-
-            // Check filters against DESTINATION tool
+            // STRICT CHECK: Ensure ALL stats in the crystal are allowed on the target tool.
             for (ResourceLocation stat : crystalStats.stats().keySet()) {
-                if (!StatTransferFilterManager.isAllowed(resultTool, stat)) return ItemStack.EMPTY;
+                if (!StatTransferFilterManager.isAllowed(tool, stat)) return Optional.empty();
             }
+
+            // 1. Output: Enhanced Tool
+            ItemStack resultTool = tool.copy();
+            resultTool.setCount(1);
 
             // Merge logic using Central API
             resultTool.update(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY, currentMap ->
                     MementoAPI.mergeStats(currentMap, crystalStats)
             );
 
-            return resultTool;
+            // 2. Remaining: Empty Crystal (stays in grid)
+            ItemStack emptyCrystal = crystal.copy();
+            emptyCrystal.setCount(1);
+            emptyCrystal.remove(ModDataComponents.TRACKER_MAP);
+
+            remaining.set(ctx.crystalIdx, emptyCrystal);
+
+            return Optional.of(new RecipeResult(resultTool, remaining));
         }
 
-        return ItemStack.EMPTY;
+        return Optional.empty();
     }
 
     @Override
-    public @NotNull NonNullList<ItemStack> getRemainingItems(CraftingInput input) {
-        NonNullList<ItemStack> remaining = NonNullList.withSize(input.size(), ItemStack.EMPTY);
+    public boolean matches(@NotNull CraftingInput input, @NotNull Level level) {
+        // Strict matching: Only return true if the calculation succeeds (filters pass, valid context)
+        return calculateResult(input).isPresent();
+    }
 
-        ItemStack crystal = ItemStack.EMPTY;
-        ItemStack tool = ItemStack.EMPTY;
-        int crystalIdx = -1;
-        int toolIdx = -1;
+    @Override
+    public @NotNull ItemStack assemble(@NotNull CraftingInput input, HolderLookup.@NotNull Provider registries) {
+        return calculateResult(input).map(RecipeResult::result).orElse(ItemStack.EMPTY);
+    }
 
-        for (int i = 0; i < input.size(); i++) {
-            ItemStack stack = input.getItem(i);
-            if (stack.isEmpty()) continue;
-            if (stack.getItem() instanceof MementoCrystalItem) {
-                crystal = stack;
-                crystalIdx = i;
-            } else {
-                tool = stack;
-                toolIdx = i;
-            }
-        }
-
-        TrackerMap crystalStats = crystal.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
-        TrackerMap toolStats = tool.getOrDefault(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY);
-
-        // SIPHON: Tool -> Crystal. Result is Crystal. Tool stays (wiped).
-        if (crystalStats.stats().isEmpty() && !toolStats.stats().isEmpty()) {
-            ItemStack wipedTool = tool.copy();
-            wipedTool.remove(ModDataComponents.TRACKER_MAP);
-            wipedTool.setCount(1);
-            remaining.set(toolIdx, wipedTool);
-        }
-        // APPLY: Crystal -> Tool. Result is Tool. Crystal stays (empty).
-        else if (!crystalStats.stats().isEmpty()) {
-            ItemStack emptyCrystal = crystal.copy();
-            emptyCrystal.remove(ModDataComponents.TRACKER_MAP);
-            emptyCrystal.setCount(1);
-            remaining.set(crystalIdx, emptyCrystal);
-        }
-
-        return remaining;
+    @Override
+    public @NotNull NonNullList<ItemStack> getRemainingItems(@NotNull CraftingInput input) {
+        // Return the safe remaining items calculated during the logic pass
+        return calculateResult(input).map(RecipeResult::remaining)
+                .orElseGet(() -> NonNullList.withSize(input.size(), ItemStack.EMPTY));
     }
 
     @Override
@@ -169,7 +196,6 @@ public class StatTransferRecipe implements CraftingRecipe {
         return CraftingBookCategory.MISC;
     }
 
-    // Serializer Boilerplate
     public static class Serializer implements RecipeSerializer<StatTransferRecipe> {
         public static final MapCodec<StatTransferRecipe> CODEC = MapCodec.unit(StatTransferRecipe::new);
         public static final StreamCodec<RegistryFriendlyByteBuf, StatTransferRecipe> STREAM_CODEC = StreamCodec.unit(new StatTransferRecipe());

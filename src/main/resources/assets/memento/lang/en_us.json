@@ -3,13 +3,38 @@
   "tooltip.memento.hold_shift": "Hold [Shift] for History",
   "tooltip.memento.hold_ctrl_shift": "Hold [Ctrl+Shift] for All (+%s more)",
   "tooltip.memento.created_by": "Created by %s on Day %s",
+  "tooltip.memento.original_name": "Originally: %s",
+  "tooltip.memento.wielded_by": "Wielded by %s on Day %s",
+
   "memento.toast.levelup": "Item Level Up!",
+
+  "memento.echo.passive": "Passive: %s %s",
+  "memento.echo.trigger.attack": "on Hit",
+  "memento.echo.trigger.mine": "when Mining",
+  "memento.echo.trigger.jump": "on Jump",
+  "memento.echo.trigger.land": "on Landing",
+  "memento.echo.trigger.block_interact": "on Interact",
+  "memento.echo.action.explosion": "Causes Explosion",
+  "memento.echo.action.lightning": "Summons Lightning",
+  "memento.echo.action.spawn_entity": "Spawns %s",
+  "memento.echo.action.play_sound": "Plays Sound",
+  "memento.echo.action.particle_burst": "Emits Particles",
+
   "stat.memento.blocks_broken": "Blocks Broken",
+  "stat.memento.crops_harvested": "Crops Harvested",
+  "stat.memento.damage_blocked": "Damage Blocked",
+  "stat.memento.damage_taken": "Damage Taken",
+  "stat.memento.distance_flown": "Distance Flown",
   "stat.memento.entities_killed": "Entities Killed",
-  "stat.memento.distance_flown": "Distance Flown (m)",
+  "stat.memento.fires_started": "Fires Started",
+  "stat.memento.items_caught": "Items Caught",
+  "stat.memento.longest_shot": "Longest Shot",
+  "stat.memento.shots_fired": "Shots Fired",
+
   "item.memento.memento_crystal": "Memento Crystal",
   "item.memento.memento_crystal.empty": "Empty (Combine with Tool to Siphon)",
   "item.memento.memento_crystal.stored": "Contains Memories:",
+
   "jei.memento.milestone.title": "Memento Milestones",
   "jei.memento.effect.title": "Memento Stat Effects"
 }

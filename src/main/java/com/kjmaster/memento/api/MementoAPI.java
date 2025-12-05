@@ -1,6 +1,7 @@
 package com.kjmaster.memento.api;
 
 import com.kjmaster.memento.api.event.StatChangeEvent;
+import com.kjmaster.memento.component.ItemMetadata;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.data.StatBehavior;
 import com.kjmaster.memento.data.StatBehaviorManager;
@@ -15,11 +16,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BiFunction;
 
 public class MementoAPI {
@@ -66,6 +63,12 @@ public class MementoAPI {
         if (!stack.has(ModDataComponents.ITEM_UUID)) {
             stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
         }
+
+        // --- Ownership Logic ---
+        if (entity instanceof ServerPlayer) {
+            updateOwnership(entity, stack);
+        }
+
         UUID itemUuid = stack.get(ModDataComponents.ITEM_UUID);
 
         // 1. GET (Delegated)
@@ -108,6 +111,42 @@ public class MementoAPI {
                 RECURSION_GUARD.get().remove(key);
             }
         }
+    }
+
+    private static void updateOwnership(LivingEntity entity, ItemStack stack) {
+        // If the item has no metadata, create it now (e.g. found loot)
+        if (!stack.has(ModDataComponents.ITEM_METADATA)) {
+            String playerName = entity.getName().getString();
+            long worldDay = entity.level().getDayTime() / 24000L;
+            // Original Name is current name since we just found/started using it
+            String originalName = stack.getHoverName().getString();
+
+            stack.set(ModDataComponents.ITEM_METADATA, new ItemMetadata(playerName, worldDay, originalName, List.of()));
+            return;
+        }
+
+        ItemMetadata meta = stack.get(ModDataComponents.ITEM_METADATA);
+        String currentPlayer = entity.getName().getString();
+
+        // 1. If I am the creator, do nothing
+        if (meta.creatorName().equals(currentPlayer)) return;
+
+        // 2. If I am already the last person in the history, do nothing
+        if (!meta.wieldedBy().isEmpty()) {
+            if (meta.wieldedBy().getLast().ownerName().equals(currentPlayer)) return;
+        }
+
+        // 3. New Owner! Add to history
+        long worldDay = entity.level().getDayTime() / 24000L;
+        List<ItemMetadata.OwnerEntry> newHistory = new ArrayList<>(meta.wieldedBy());
+        newHistory.add(new ItemMetadata.OwnerEntry(currentPlayer, worldDay));
+
+        stack.set(ModDataComponents.ITEM_METADATA, new ItemMetadata(
+                meta.creatorName(),
+                meta.createdOnWorldDay(),
+                meta.originalName(),
+                newHistory
+        ));
     }
 
     public static void sealStat(ItemStack stack, ResourceLocation statId) {

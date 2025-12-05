@@ -1,7 +1,9 @@
 package com.kjmaster.memento;
 
+import com.kjmaster.memento.client.ModKeyMappings;
 import com.kjmaster.memento.client.StatDefinitionManager;
 import com.kjmaster.memento.client.tooltip.StatBarComponent;
+import com.kjmaster.memento.client.tooltip.StatIconComponent;
 import com.kjmaster.memento.component.TrackerMap;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModStats;
@@ -13,6 +15,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
@@ -24,10 +27,15 @@ public class MementoClient {
         NeoForge.EVENT_BUS.addListener(this::clientSetup);
         NeoForge.EVENT_BUS.addListener(this::registerReloadListeners);
         NeoForge.EVENT_BUS.addListener(this::registerTooltipFactories);
+        NeoForge.EVENT_BUS.addListener(this::registerKeyMappings);
     }
 
     private void registerReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new StatDefinitionManager());
+    }
+
+    private void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(ModKeyMappings.TOGGLE_COMPACT_MODE);
     }
 
     private void clientSetup(FMLClientSetupEvent event) {
@@ -63,7 +71,9 @@ public class MementoClient {
     }
 
     private void registerTooltipFactories(RegisterClientTooltipComponentFactoriesEvent event) {
-        // Since StatBarComponent implements both, we just return itself
+        // Register Bar Component
         event.register(StatBarComponent.class, component -> component);
+        // Register Icon Component
+        event.register(StatIconComponent.class, component -> component);
     }
 }

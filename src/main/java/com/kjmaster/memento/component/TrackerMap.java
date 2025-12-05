@@ -100,6 +100,10 @@ public record TrackerMap(Map<ResourceLocation, Long> stats, Map<ResourceLocation
             TrackerMap::new
     );
 
+    public TrackerMap(Map<ResourceLocation, Long> stats) {
+        this(stats, Map.of());
+    }
+
     public TrackerMap(Map<ResourceLocation, Long> stats, Map<ResourceLocation, Integer> counts) {
         this(stats, counts, new HashSet<>());
     }

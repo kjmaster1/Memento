@@ -6,6 +6,8 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
+import java.util.List;
+
 public class MetadataEvents {
 
     @SubscribeEvent
@@ -18,7 +20,10 @@ public class MetadataEvents {
                 String playerName = event.getEntity().getName().getString();
                 long worldDay = event.getEntity().level().getDayTime() / 24000L;
 
-                stack.set(ModDataComponents.ITEM_METADATA, new ItemMetadata(playerName, worldDay));
+                // Capture the original name (e.g. "Iron Sword") before any anvils
+                String originalName = stack.getHoverName().getString();
+
+                stack.set(ModDataComponents.ITEM_METADATA, new ItemMetadata(playerName, worldDay, originalName, List.of()));
             }
         }
     }
