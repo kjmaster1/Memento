@@ -13,6 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -196,6 +197,27 @@ public class StatBufferManager {
             // Clearing the tracker forces 'flush' to fall back to loose UUID matching for the first run,
             // which correctly re-binds the stats to the respawned items.
             OBJECT_TRACKER.remove(event.getOriginal().getUUID());
+        }
+    }
+
+    // --- Aggressive Flushes for "Ship of Theseus" Identity Safety ---
+
+    @SubscribeEvent
+    public static void onContainerOpen(PlayerContainerEvent.Open event) {
+        // Flush before interaction to save stats to the current item instances.
+        // This is crucial for Anvils, which might destroy the input item and create a new output
+        // instance with the same UUID but different object identity.
+        if (event.getEntity() instanceof ServerPlayer player) {
+            flush(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onContainerClose(PlayerContainerEvent.Close event) {
+        // Flush after interaction to catch any immediate changes or swaps
+        // before the player moves on.
+        if (event.getEntity() instanceof ServerPlayer player) {
+            flush(player);
         }
     }
 }

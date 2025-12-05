@@ -14,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -106,18 +107,33 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     }
 
     private static boolean checkInventory(Player player, StatRequirement rule) {
-        // Scan main inventory
+        // 1. Scan main inventory
         for (ItemStack item : player.getInventory().items) {
             if (checkSourceItem(item, rule)) return true;
         }
-        // Scan armor/offhand/curios via SlotHelper
-        final boolean[] found = {false};
-        SlotHelper.forEachWornItem(player, ctx -> {
-            if (!found[0] && checkSourceItem(ctx.stack(), rule)) {
-                found[0] = true;
+
+        // 2. Scan Vanilla Equipment Slots (Armor, Offhand)
+        // Explicit loop avoids lambda/array allocation
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = player.getItemBySlot(slot);
+            if (!stack.isEmpty() && checkSourceItem(stack, rule)) {
+                return true;
             }
-        });
-        return found[0];
+        }
+
+        // 3. Scan Curios (via SlotHelper to handle mod dependency safely)
+        // Uses stackless exception for control flow to avoid boolean array allocation
+        try {
+            SlotHelper.processCurios(player, (stack, idx) -> {
+                if (checkSourceItem(stack, rule)) {
+                    throw FoundItemException.INSTANCE;
+                }
+            });
+        } catch (FoundItemException e) {
+            return true;
+        }
+
+        return false;
     }
 
     private static boolean checkSourceItem(ItemStack stack, StatRequirement rule) {
@@ -133,5 +149,13 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
 
         TrackerMap map = stack.get(ModDataComponents.TRACKER_MAP);
         return map.getValue(rule.stat()) >= rule.min();
+    }
+
+    // Optimization: Stackless exception used solely for breaking out of the Curios lambda loop.
+    private static final class FoundItemException extends RuntimeException {
+        public static final FoundItemException INSTANCE = new FoundItemException();
+        private FoundItemException() {
+            super(null, null, false, false);
+        }
     }
 }

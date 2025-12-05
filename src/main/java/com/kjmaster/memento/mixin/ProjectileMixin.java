@@ -21,6 +21,11 @@ import java.util.UUID;
 @Mixin(Projectile.class)
 public abstract class ProjectileMixin {
 
+    // Cache the weapon found during the 'shoot' sequence to avoid double-scanning inventory.
+    // This field persists only for the duration of the method call sequence.
+    @Unique
+    private ItemStack memento$cachedSourceStack = ItemStack.EMPTY;
+
     // We only hook the 'shoot' method to capture the Source Stack (Context)
     // and to modify Inaccuracy (Spread), which must be done during calculation.
 
@@ -29,8 +34,20 @@ public abstract class ProjectileMixin {
         Projectile self = (Projectile) (Object) this;
 
         if (self.getOwner() instanceof LivingEntity living) {
+            // Check if we already have data attached (e.g. from NBT or previous logic)
             if (!self.hasData(ModDataAttachments.SOURCE_STACK) || self.getData(ModDataAttachments.SOURCE_STACK).isEmpty()) {
-                ItemStack weapon = memento$findWeapon(living);
+
+                ItemStack weapon = ItemStack.EMPTY;
+
+                // 1. Try to get from Cache (populated by memento$modifyInaccuracy if it ran first)
+                if (!memento$cachedSourceStack.isEmpty()) {
+                    weapon = memento$cachedSourceStack;
+                }
+                // 2. Fallback: Scan if cache is empty
+                else {
+                    weapon = memento$findWeapon(living);
+                }
+
                 if (!weapon.isEmpty()) {
                     if (!weapon.has(ModDataComponents.ITEM_UUID)) {
                         weapon.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
@@ -39,6 +56,9 @@ public abstract class ProjectileMixin {
                 }
             }
         }
+
+        // Cleanup: Clear the cache to prevent holding references or stale data
+        memento$cachedSourceStack = ItemStack.EMPTY;
     }
 
     // "Soft" Mixin: Only modifies the inaccuracy float parameter.
@@ -46,10 +66,15 @@ public abstract class ProjectileMixin {
     @ModifyVariable(method = "shoot(DDDFF)V", at = @At("HEAD"), ordinal = 1, argsOnly = true)
     private float memento$modifyInaccuracy(float inaccuracy) {
         Projectile self = (Projectile) (Object) this;
-        // We can't easily rely on SOURCE_STACK attachment here as it might not be set yet (race condition in Mixin HEAD).
-        // So we re-fetch weapon context quickly.
+
         if (self.getOwner() instanceof LivingEntity living) {
-            ItemStack stack = memento$findWeapon(living);
+            // 1. Check/Populate Cache
+            if (memento$cachedSourceStack.isEmpty()) {
+                memento$cachedSourceStack = memento$findWeapon(living);
+            }
+
+            ItemStack stack = memento$cachedSourceStack;
+
             if (!stack.isEmpty()) {
                 double multiplier = 1.0;
                 // Calculate multiplier

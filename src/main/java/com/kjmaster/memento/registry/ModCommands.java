@@ -44,6 +44,11 @@ public class ModCommands {
                         .then(Commands.argument("stat", ResourceLocationArgument.id())
                                 .then(Commands.argument("amount", LongArgumentType.longArg(0))
                                         .executes(ModCommands::setStat))))
+
+                // Subcommand: SEAL (Lock stat on held item)
+                .then(Commands.literal("seal")
+                        .then(Commands.argument("stat", ResourceLocationArgument.id())
+                                .executes(ModCommands::sealStat)))
         );
     }
 
@@ -93,12 +98,26 @@ public class ModCommands {
             return 0;
         }
 
-        // For SET, we need to calculate the difference if we want to trigger milestones correctly via increment,
-        // OR we just set it directly.
         // Using updateStat with a generic replacement function is safest.
         MementoAPI.updateStat(player, stack, statId, target, (oldVal, newVal) -> newVal);
 
         context.getSource().sendSuccess(() -> Component.literal("Set " + statId + " to " + target), true);
+        return 1;
+    }
+
+    private static int sealStat(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        ResourceLocation statId = ResourceLocationArgument.getId(context, "stat");
+        ItemStack stack = player.getMainHandItem();
+
+        if (stack.isEmpty()) {
+            context.getSource().sendFailure(Component.literal("You must hold an item."));
+            return 0;
+        }
+
+        MementoAPI.sealStat(stack, statId);
+
+        context.getSource().sendSuccess(() -> Component.literal("Sealed stat " + statId + ". It can no longer be modified."), true);
         return 1;
     }
 }

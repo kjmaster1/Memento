@@ -12,6 +12,7 @@ import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -49,11 +50,18 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
 
                             for (ResourceLocation itemId : trigger.optimizedItems().get()) {
                                 Item item = BuiltInRegistries.ITEM.get(itemId);
-                                // Note: We don't check for AIR here because strictly invalid items might just be mod-missing items,
-                                // essentially harmless keys in a map.
+
+                                // Check for AIR fallback.
+                                // If the registry returns AIR, but the ID wasn't explicitly "minecraft:air",
+                                // it means the item is missing (e.g. mod uninstalled).
+                                // We must SKIP these to prevent them from attaching to the Empty Hand.
+                                if (item == Items.AIR && !itemId.equals(ResourceLocation.withDefaultNamespace("air"))) {
+                                    Memento.LOGGER.debug("Skipping trigger for missing item: {}", itemId);
+                                    continue;
+                                }
+
                                 typeMap.computeIfAbsent(item, k -> new ArrayList<>()).add(trigger);
                             }
-                            // Also add to global? No, if it's indexed, we only want it from index.
                         } else {
                             // Fallback to global list
                             GLOBAL_TRIGGERS.computeIfAbsent(trigger.type(), k -> new ArrayList<>()).add(trigger);

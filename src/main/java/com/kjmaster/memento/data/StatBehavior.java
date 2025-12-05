@@ -13,7 +13,8 @@ public record StatBehavior(
     public enum MergeStrategy implements StringRepresentable {
         SUM, // Add both values (e.g. Total Kills)
         MAX, // Take the higher value (e.g. Longest Shot)
-        MIN; // Take the lower value (e.g. Fastest Run)
+        MIN, // Take the lower value (e.g. Fastest Run)
+        AVERAGE; // Weighted Average (e.g. Average Damage)
 
         public static final Codec<MergeStrategy> CODEC = StringRepresentable.fromEnum(MergeStrategy::values);
 
