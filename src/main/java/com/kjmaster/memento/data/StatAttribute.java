@@ -23,7 +23,7 @@ public record StatAttribute(
         EquipmentSlotGroup slots,
         ScalingFunction scalingFunction,
         double exponent,
-        Optional<List<ResourceLocation>> items // NEW FIELD
+        Optional<List<ResourceLocation>> items
 ) {
     public enum ScalingFunction implements StringRepresentable {
         LINEAR, LOGARITHMIC, EXPONENTIAL;

@@ -7,6 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Optional;
 
 public record StatDecayRule(
@@ -14,8 +15,9 @@ public record StatDecayRule(
         ResourceLocation stat,
         Operation operation,
         double value,
-        Optional<Integer> frequency, // Only for TICK trigger (in ticks)
-        Optional<ItemPredicate> itemFilter
+        Optional<Integer> frequency,
+        Optional<ItemPredicate> itemFilter,
+        Optional<List<ResourceLocation>> items
 ) {
     public static final Codec<StatDecayRule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Trigger.CODEC.fieldOf("trigger").forGetter(StatDecayRule::trigger),
@@ -23,7 +25,8 @@ public record StatDecayRule(
             Operation.CODEC.fieldOf("operation").forGetter(StatDecayRule::operation),
             Codec.DOUBLE.fieldOf("value").forGetter(StatDecayRule::value),
             Codec.INT.optionalFieldOf("frequency").forGetter(StatDecayRule::frequency),
-            ItemPredicate.CODEC.optionalFieldOf("item_filter").forGetter(StatDecayRule::itemFilter)
+            ItemPredicate.CODEC.optionalFieldOf("item_filter").forGetter(StatDecayRule::itemFilter),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatDecayRule::items)
     ).apply(instance, StatDecayRule::new));
 
     public enum Trigger implements StringRepresentable {

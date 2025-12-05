@@ -11,15 +11,15 @@ import java.util.Optional;
 public record StatVisualPrestige(
         ResourceLocation stat,
         long minInfo,
-        Optional<Rarity> rarity, // The rarity to apply (e.g. EPIC)
-        Optional<Boolean> glint, // true = force glint, false = no change
-        Optional<List<ResourceLocation>> optimizedItems // Explicit list of items for O(1) lookup
+        Optional<Rarity> rarity,
+        Optional<Boolean> glint,
+        Optional<List<ResourceLocation>> items // Renamed from optimizedItems
 ) {
     public static final Codec<StatVisualPrestige> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.fieldOf("stat").forGetter(StatVisualPrestige::stat),
             Codec.LONG.fieldOf("min_value").forGetter(StatVisualPrestige::minInfo),
             Rarity.CODEC.optionalFieldOf("rarity").forGetter(StatVisualPrestige::rarity),
             Codec.BOOL.optionalFieldOf("glint").forGetter(StatVisualPrestige::glint),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("optimized_items").forGetter(StatVisualPrestige::optimizedItems)
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatVisualPrestige::items)
     ).apply(instance, StatVisualPrestige::new));
 }

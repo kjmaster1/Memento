@@ -21,9 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = AnvilMenu.class, priority = 1001)
 public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
-    @Shadow
-    @Final
-    private DataSlot cost;
+    @Shadow @Final private DataSlot cost;
 
     public AnvilMenuMixin(MenuType<?> type, int containerId, net.minecraft.world.entity.player.Inventory playerInventory, net.minecraft.world.inventory.ContainerLevelAccess access) {
         super(type, containerId, playerInventory, access);
@@ -37,21 +35,18 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
         if (left.isEmpty() || result.isEmpty()) return;
 
-        // --- 1. STAT MERGING LOGIC ---
         if (right.has(ModDataComponents.TRACKER_MAP)) {
             TrackerMap rightMap = right.get(ModDataComponents.TRACKER_MAP);
-
             if (rightMap != null && !rightMap.stats().isEmpty()) {
-                // Atomic, safe modification using centralized logic
                 result.update(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY, currentMap ->
                         MementoAPI.mergeStats(currentMap, rightMap)
                 );
             }
         }
 
-        // --- 2. REPAIR COST CAP LOGIC ---
         int lowestCap = -1;
-        for (StatRepairCap rule : StatRepairCapManager.getAllRules()) {
+        // Use optimized lookup
+        for (StatRepairCap rule : StatRepairCapManager.getRules(left)) {
             long val = MementoAPI.getStat(left, rule.stat());
             if (val >= rule.minInfo()) {
                 if (lowestCap == -1 || rule.cap() < lowestCap) {
@@ -62,16 +57,9 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
 
         if (lowestCap != -1) {
             int currentCost = this.cost.get();
-
-            // Safety Logic:
-            // 1. Only act if the current cost effectively exceeds our cap.
-            // 2. Compatibility: If the cost is >= 40 (Too Expensive allowed by another mod or Creative mode),
-            //    we ONLY override it if our cap is explicitly a "Discount" (e.g. < 39).
             if (currentCost > lowestCap) {
                 if (lowestCap < 39 || currentCost < 40) {
                     this.cost.set(lowestCap);
-
-                    // Update the item's internal repair cost component
                     int itemRepairCost = result.getOrDefault(DataComponents.REPAIR_COST, 0);
                     if (itemRepairCost > lowestCap) {
                         result.set(DataComponents.REPAIR_COST, lowestCap);

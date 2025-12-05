@@ -11,12 +11,13 @@ import java.util.Map;
 import java.util.Optional;
 
 public record StatSynergy(
-        ResourceLocation id, // Unique ID for the synergy (from filename/json)
+        ResourceLocation id,
         Map<ResourceLocation, Long> requirements,
         Optional<Component> title,
         Optional<Component> description,
         Optional<String> sound,
-        List<String> rewards // Commands
+        List<String> rewards,
+        Optional<List<ResourceLocation>> items
 ) {
     public static final Codec<StatSynergy> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.fieldOf("id").forGetter(StatSynergy::id),
@@ -24,6 +25,7 @@ public record StatSynergy(
             ComponentSerialization.CODEC.optionalFieldOf("title").forGetter(StatSynergy::title),
             ComponentSerialization.CODEC.optionalFieldOf("description").forGetter(StatSynergy::description),
             Codec.STRING.optionalFieldOf("sound").forGetter(StatSynergy::sound),
-            Codec.STRING.listOf().optionalFieldOf("rewards", List.of()).forGetter(StatSynergy::rewards)
+            Codec.STRING.listOf().optionalFieldOf("rewards", List.of()).forGetter(StatSynergy::rewards),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatSynergy::items)
     ).apply(instance, StatSynergy::new));
 }

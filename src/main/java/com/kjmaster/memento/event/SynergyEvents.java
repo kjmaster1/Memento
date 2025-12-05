@@ -31,17 +31,19 @@ public class SynergyEvents {
 
         UnlockedSynergies unlocked = stack.getOrDefault(ModDataComponents.UNLOCKED_SYNERGIES, UnlockedSynergies.EMPTY);
         boolean changed = false;
+        ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
 
         for (StatSynergy synergy : StatSynergyManager.getAllSynergies()) {
             if (unlocked.hasUnlocked(synergy.id())) continue;
 
-            // Check Requirements
+            // Apply Item Filter
+            if (synergy.items().isPresent() && !synergy.items().get().contains(itemKey)) {
+                continue;
+            }
+
             if (checkRequirements(stack, synergy.requirements())) {
-                // UNLOCK!
                 unlocked = unlocked.add(synergy.id());
                 changed = true;
-
-                // Grant Rewards
                 grantRewards(player, stack, synergy);
             }
         }
@@ -54,24 +56,18 @@ public class SynergyEvents {
     private static boolean checkRequirements(ItemStack stack, Map<ResourceLocation, Long> reqs) {
         for (Map.Entry<ResourceLocation, Long> req : reqs.entrySet()) {
             long currentVal = MementoAPI.getStat(stack, req.getKey());
-            if (currentVal < req.getValue()) {
-                return false;
-            }
+            if (currentVal < req.getValue()) return false;
         }
         return true;
     }
 
     private static void grantRewards(ServerPlayer player, ItemStack stack, StatSynergy synergy) {
-        // 1. Visual Toast
         if (synergy.title().isPresent()) {
             PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
-                    stack,
-                    synergy.title().get(),
-                    synergy.description().orElse(Component.empty())
+                    stack, synergy.title().get(), synergy.description().orElse(Component.empty())
             ));
         }
 
-        // 2. Sound
         if (synergy.sound().isPresent()) {
             ResourceLocation soundLoc = ResourceLocation.parse(synergy.sound().get());
             SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
@@ -80,7 +76,6 @@ public class SynergyEvents {
             }
         }
 
-        // 3. Commands
         if (!synergy.rewards().isEmpty()) {
             CommandSourceStack source = player.createCommandSourceStack().withPermission(2).withSuppressedOutput();
             for (String command : synergy.rewards()) {

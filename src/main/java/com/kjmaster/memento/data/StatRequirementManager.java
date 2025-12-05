@@ -26,11 +26,8 @@ import java.util.*;
 
 public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-
-    // Split rules into O(1) indexed rules and O(N) global rules
     private static final List<StatRequirement> GLOBAL_RULES = new ArrayList<>();
     private static final Map<Item, List<StatRequirement>> INDEXED_RULES = new HashMap<>();
-
     private final HolderLookup.Provider registries;
 
     public StatRequirementManager(HolderLookup.Provider registries) {
@@ -42,47 +39,36 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
     protected void apply(Map<ResourceLocation, JsonElement> object, @NotNull ResourceManager resourceManager, @NotNull ProfilerFiller profiler) {
         GLOBAL_RULES.clear();
         INDEXED_RULES.clear();
-
         RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
 
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
             StatRequirement.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse restriction rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        // If optimization is requested, index it
-                        if (rule.optimizedItems().isPresent() && !rule.optimizedItems().get().isEmpty()) {
-                            for (ResourceLocation itemId : rule.optimizedItems().get()) {
+                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
+                            for (ResourceLocation itemId : rule.items().get()) {
                                 Item item = BuiltInRegistries.ITEM.get(itemId);
                                 INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {
-                            // Fallback to global scan
                             GLOBAL_RULES.add(rule);
                         }
                     });
         }
         Memento.LOGGER.info("Loaded {} usage restrictions ({} global, {} indexed)",
-                GLOBAL_RULES.size() + INDEXED_RULES.values().stream().mapToInt(List::size).sum(),
-                GLOBAL_RULES.size(),
-                INDEXED_RULES.size()
-        );
+                GLOBAL_RULES.size() + INDEXED_RULES.values().stream().mapToInt(List::size).sum(), GLOBAL_RULES.size(), INDEXED_RULES.size());
     }
-
-    // ... (keep checkRestriction, checkRules, checkInventory, checkSourceItem, FoundItemException as is)
 
     public static Optional<String> checkRestriction(Player player, ItemStack stack) {
         if (stack.isEmpty()) return Optional.empty();
-
         List<StatRequirement> indexed = INDEXED_RULES.get(stack.getItem());
         if (indexed != null) {
             Optional<String> result = checkRules(player, stack, indexed);
             if (result.isPresent()) return result;
         }
-
         if (!GLOBAL_RULES.isEmpty()) {
             return checkRules(player, stack, GLOBAL_RULES);
         }
-
         return Optional.empty();
     }
 
@@ -90,17 +76,13 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
         for (StatRequirement rule : rules) {
             if (rule.restrictedItem().test(stack)) {
                 boolean passed = false;
-
                 if (rule.scope() == StatRequirement.RequirementScope.SELF) {
                     long val = MementoAPI.getStat(stack, rule.stat());
                     if (val >= rule.min()) passed = true;
                 } else {
                     passed = checkInventory(player, rule);
                 }
-
-                if (!passed) {
-                    return Optional.of(rule.failureMessage().orElse("message.memento.restriction.default"));
-                }
+                if (!passed) return Optional.of(rule.failureMessage().orElse("message.memento.restriction.default"));
             }
         }
         return Optional.empty();
@@ -110,44 +92,28 @@ public class StatRequirementManager extends SimpleJsonResourceReloadListener {
         for (ItemStack item : player.getInventory().items) {
             if (checkSourceItem(item, rule)) return true;
         }
-
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = player.getItemBySlot(slot);
-            if (!stack.isEmpty() && checkSourceItem(stack, rule)) {
-                return true;
-            }
+            if (!stack.isEmpty() && checkSourceItem(stack, rule)) return true;
         }
-
         try {
             SlotHelper.processCurios(player, (stack, idx) -> {
-                if (checkSourceItem(stack, rule)) {
-                    throw FoundItemException.INSTANCE;
-                }
+                if (checkSourceItem(stack, rule)) throw FoundItemException.INSTANCE;
             });
-        } catch (FoundItemException e) {
-            return true;
-        }
-
+        } catch (FoundItemException e) { return true; }
         return false;
     }
 
     private static boolean checkSourceItem(ItemStack stack, StatRequirement rule) {
         if (stack.isEmpty()) return false;
-
-        if (rule.sourceMatcher().isPresent() && !rule.sourceMatcher().get().test(stack)) {
-            return false;
-        }
-
+        if (rule.sourceMatcher().isPresent() && !rule.sourceMatcher().get().test(stack)) return false;
         if (!stack.has(ModDataComponents.TRACKER_MAP)) return false;
-
         TrackerMap map = stack.get(ModDataComponents.TRACKER_MAP);
         return map.getValue(rule.stat()) >= rule.min();
     }
 
     private static final class FoundItemException extends RuntimeException {
         public static final FoundItemException INSTANCE = new FoundItemException();
-        private FoundItemException() {
-            super(null, null, false, false);
-        }
+        private FoundItemException() { super(null, null, false, false); }
     }
 }

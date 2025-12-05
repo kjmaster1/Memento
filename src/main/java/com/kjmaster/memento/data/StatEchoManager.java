@@ -18,8 +18,6 @@ import java.util.Map;
 
 public class StatEchoManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-
-    // Map Trigger -> List of Rules
     private static final Map<StatEchoRule.Trigger, List<StatEchoRule>> RULES = new HashMap<>();
 
     public StatEchoManager() {
@@ -36,8 +34,7 @@ public class StatEchoManager extends SimpleJsonResourceReloadListener {
             StatEchoRule.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse stat echo rule {}: {}", id, err))
                     .ifPresent(rule -> {
-                        // Re-create rule with correct ID (from filename)
-                        StatEchoRule withId = new StatEchoRule(id, rule.trigger(), rule.action(), rule.conditions(), rule.parameters(), rule.cooldownTicks(), rule.optimizedItems());
+                        StatEchoRule withId = new StatEchoRule(id, rule.trigger(), rule.action(), rule.conditions(), rule.parameters(), rule.cooldownTicks(), rule.items());
                         RULES.computeIfAbsent(rule.trigger(), k -> new ArrayList<>()).add(withId);
                     });
             count++;

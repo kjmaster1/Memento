@@ -15,13 +15,13 @@ public record StatTrigger(
         TriggerType type,
         ResourceLocation stat,
         long amount,
-        Optional<ItemPredicate> item,        // The item HOLDING the stat (Receiver)
-        Optional<ItemPredicate> subjectItem, // The item BEING used/consumed (Subject)
-        Optional<BlockPredicate> block,      // The block being interacted with
-        Optional<EntityPredicate> target,    // The entity being interacted with
-        Optional<List<ResourceLocation>> optimizedItems, // Explicit list of items for O(1) lookup
-        Optional<LocationPredicate> location, // Handles Dimension, Biome, Y-Level, Structures, Light
-        Optional<String> weather              // "clear", "rain", "thunder"
+        Optional<ItemPredicate> item,
+        Optional<ItemPredicate> subjectItem,
+        Optional<BlockPredicate> block,
+        Optional<EntityPredicate> target,
+        Optional<List<ResourceLocation>> items,
+        Optional<LocationPredicate> location,
+        Optional<String> weather
 ) {
     public static final Codec<StatTrigger> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             TriggerType.CODEC.fieldOf("type").forGetter(StatTrigger::type),
@@ -31,21 +31,14 @@ public record StatTrigger(
             ItemPredicate.CODEC.optionalFieldOf("subject_item").forGetter(StatTrigger::subjectItem),
             BlockPredicate.CODEC.optionalFieldOf("block").forGetter(StatTrigger::block),
             EntityPredicate.CODEC.optionalFieldOf("target").forGetter(StatTrigger::target),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("optimized_items").forGetter(StatTrigger::optimizedItems),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatTrigger::items),
             LocationPredicate.CODEC.optionalFieldOf("location").forGetter(StatTrigger::location),
             Codec.STRING.optionalFieldOf("weather").forGetter(StatTrigger::weather)
     ).apply(instance, StatTrigger::new));
 
     public enum TriggerType {
-        BLOCK_BREAK,
-        ENTITY_KILL,
-        ITEM_USE,
-        TOOL_MODIFICATION,
-        BLOCK_PLACE;
-
+        BLOCK_BREAK, ENTITY_KILL, ITEM_USE, TOOL_MODIFICATION, BLOCK_PLACE;
         public static final Codec<TriggerType> CODEC = Codec.STRING.xmap(
-                s -> TriggerType.valueOf(s.toUpperCase()),
-                t -> t.name().toLowerCase()
-        );
+                s -> TriggerType.valueOf(s.toUpperCase()), t -> t.name().toLowerCase());
     }
 }

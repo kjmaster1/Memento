@@ -1,6 +1,5 @@
 package com.kjmaster.memento.event;
 
-import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.component.EchoCooldowns;
 import com.kjmaster.memento.data.StatEchoManager;
@@ -28,8 +27,6 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 import java.util.List;
 
 public class EchoEvents {
-
-    // --- Hooks ---
 
     @SubscribeEvent
     public static void onAttack(LivingDamageEvent.Post event) {
@@ -66,8 +63,6 @@ public class EchoEvents {
         }
     }
 
-    // --- Core Logic ---
-
     private static void processEchoes(ServerPlayer player, ItemStack stack, StatEchoRule.Trigger trigger, Vec3 pos) {
         if (stack.isEmpty()) return;
 
@@ -79,23 +74,17 @@ public class EchoEvents {
         boolean cooldownChanged = false;
 
         for (StatEchoRule rule : rules) {
-            // 1. Check Optimization (Item whitelist)
-            if (rule.optimizedItems().isPresent()) {
-                if (rule.optimizedItems().get().stream().noneMatch(id -> id.equals(BuiltInRegistries.ITEM.getKey(stack.getItem())))) {
+            if (rule.items().isPresent()) {
+                if (rule.items().get().stream().noneMatch(id -> id.equals(BuiltInRegistries.ITEM.getKey(stack.getItem())))) {
                     continue;
                 }
             }
 
-            // 2. Check Conditions
             if (!checkConditions(stack, rule)) continue;
-
-            // 3. Check Cooldown
             if (cooldowns.isOnCooldown(rule.id(), gameTime)) continue;
 
-            // 4. EXECUTE
             executeAction(player, rule, pos);
 
-            // 5. Update Cooldown
             if (rule.cooldownTicks() > 0) {
                 cooldowns = cooldowns.setCooldown(rule.id(), gameTime, rule.cooldownTicks());
                 cooldownChanged = true;
@@ -109,9 +98,7 @@ public class EchoEvents {
 
     private static boolean checkConditions(ItemStack stack, StatEchoRule rule) {
         for (StatEchoRule.Condition cond : rule.conditions()) {
-            if (MementoAPI.getStat(stack, cond.stat()) < cond.min()) {
-                return false;
-            }
+            if (MementoAPI.getStat(stack, cond.stat()) < cond.min()) return false;
         }
         return true;
     }
@@ -122,19 +109,9 @@ public class EchoEvents {
 
         switch (rule.action()) {
             case EXPLOSION -> {
-                float radius = params.radius().orElse(3.0).floatValue();
-                boolean fire = params.causesFire().orElse(false);
-                level.explode(
-                        player,
-                        pos.x, pos.y, pos.z,
-                        radius,
-                        fire,
-                        params.getExplosionInteraction()
-                );
+                level.explode(player, pos.x, pos.y, pos.z, params.radius().orElse(3.0).floatValue(), params.causesFire().orElse(false), params.getExplosionInteraction());
             }
             case LIGHTNING -> {
-                EntityType.LIGHTNING_BOLT.create(level).moveTo(pos);
-                // Lightning entity handles its own spawning logic usually, but create() returns the entity
                 var bolt = EntityType.LIGHTNING_BOLT.create(level);
                 if (bolt != null) {
                     bolt.moveTo(pos);
@@ -145,47 +122,21 @@ public class EchoEvents {
                 if (params.id().isPresent()) {
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(params.id().get());
                     int count = params.count().orElse(1);
-                    for (int i = 0; i < count; i++) {
-                        type.spawn(level, BlockPos.containing(pos), MobSpawnType.EVENT);
-                    }
+                    for (int i = 0; i < count; i++) type.spawn(level, BlockPos.containing(pos), MobSpawnType.EVENT);
                 }
             }
             case PLAY_SOUND -> {
                 if (params.id().isPresent()) {
                     SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(params.id().get());
-                    if (sound != null) {
-                        float volume = params.volume().orElse(1.0f);
-                        float pitch = params.pitch().orElse(1.0f);
-                        level.playSound(null, BlockPos.containing(pos), sound, SoundSource.PLAYERS, volume, pitch);
-                    }
+                    if (sound != null)
+                        level.playSound(null, BlockPos.containing(pos), sound, SoundSource.PLAYERS, params.volume().orElse(1.0f), params.pitch().orElse(1.0f));
                 }
             }
             case PARTICLE_BURST -> {
                 if (params.id().isPresent()) {
-                    // 1. Resolve the Particle Type from Registry
                     ParticleType<?> type = BuiltInRegistries.PARTICLE_TYPE.get(params.id().get());
-
-                    // 2. Safety Check: We only support "Simple" particles (flame, heart, cloud, etc.)
-                    // Complex particles like Redstone Dust require extra data (color) which we don't have in the JSON.
                     if (type instanceof SimpleParticleType simpleParticle) {
-
-                        int count = params.count().orElse(10);
-                        double speed = params.speed().orElse(0.1);
-
-                        // Reuse 'radius' as the Delta/Spread area (default to small 0.5 burst)
-                        double spread = params.radius().orElse(0.5);
-
-                        // 3. Send to Client
-                        // sendParticles(particle, x, y, z, count, deltaX, deltaY, deltaZ, speed)
-                        level.sendParticles(
-                                simpleParticle,
-                                pos.x, pos.y, pos.z,
-                                count,
-                                spread, spread, spread, // Delta X, Y, Z
-                                speed
-                        );
-                    } else {
-                        Memento.LOGGER.warn("Echo rule {} tried to use complex particle {}", rule.id(), params.id().get());
+                        level.sendParticles(simpleParticle, pos.x, pos.y, pos.z, params.count().orElse(10), params.radius().orElse(0.5), params.radius().orElse(0.5), params.radius().orElse(0.5), params.speed().orElse(0.1));
                     }
                 }
             }

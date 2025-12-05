@@ -148,9 +148,9 @@ public class MementoClientEvents {
 
     private static boolean isRuleActive(ItemStack stack, StatEchoRule rule) {
         // 1. Check Item Filter (Optimized Items)
-        if (rule.optimizedItems().isPresent()) {
+        if (rule.items().isPresent()) {
             ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (!rule.optimizedItems().get().contains(itemId)) {
+            if (!rule.items().get().contains(itemId)) {
                 return false;
             }
         }

@@ -20,7 +20,6 @@ import java.util.Map;
 
 public class StatVisualPrestigeManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-
     private static final List<StatVisualPrestige> GLOBAL_RULES = new ArrayList<>();
     private static final Map<Item, List<StatVisualPrestige>> INDEXED_RULES = new HashMap<>();
 
@@ -38,8 +37,8 @@ public class StatVisualPrestigeManager extends SimpleJsonResourceReloadListener 
             StatVisualPrestige.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse visual prestige rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.optimizedItems().isPresent() && !rule.optimizedItems().get().isEmpty()) {
-                            for (ResourceLocation itemId : rule.optimizedItems().get()) {
+                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
+                            for (ResourceLocation itemId : rule.items().get()) {
                                 Item item = BuiltInRegistries.ITEM.get(itemId);
                                 INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
@@ -54,17 +53,13 @@ public class StatVisualPrestigeManager extends SimpleJsonResourceReloadListener 
 
     public static List<StatVisualPrestige> getRules(ItemStack stack) {
         List<StatVisualPrestige> results = new ArrayList<>(GLOBAL_RULES);
-
         if (!stack.isEmpty()) {
             List<StatVisualPrestige> indexed = INDEXED_RULES.get(stack.getItem());
-            if (indexed != null) {
-                results.addAll(indexed);
-            }
+            if (indexed != null) results.addAll(indexed);
         }
         return results;
     }
 
-    // Kept for backward compatibility if needed, though getRules(stack) is preferred
     public static List<StatVisualPrestige> getAllRules() {
         List<StatVisualPrestige> all = new ArrayList<>(GLOBAL_RULES);
         INDEXED_RULES.values().forEach(all::addAll);

@@ -14,12 +14,13 @@ import java.util.Optional;
 public record StatMilestone(
         ResourceLocation statId,
         long targetValue,
-        Optional<ItemPredicate> itemRequirement, // Only triggers if item matches this
+        Optional<ItemPredicate> itemRequirement,
         Optional<Component> titleName,
         Optional<String> soundId,
         List<String> rewards,
-        Optional<ItemStack> replacementItem,     // The item to transform into
-        boolean keepStats                        // Should we copy the stats to the new item?
+        Optional<ItemStack> replacementItem,
+        boolean keepStats,
+        Optional<List<ResourceLocation>> items
 ) {
     public static final Codec<StatMilestone> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.fieldOf("stat").forGetter(StatMilestone::statId),
@@ -29,6 +30,7 @@ public record StatMilestone(
             Codec.STRING.optionalFieldOf("sound").forGetter(StatMilestone::soundId),
             Codec.STRING.listOf().optionalFieldOf("rewards", List.of()).forGetter(StatMilestone::rewards),
             ItemStack.CODEC.optionalFieldOf("transform_into").forGetter(StatMilestone::replacementItem),
-            Codec.BOOL.optionalFieldOf("keep_stats", true).forGetter(StatMilestone::keepStats)
+            Codec.BOOL.optionalFieldOf("keep_stats", true).forGetter(StatMilestone::keepStats),
+            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatMilestone::items)
     ).apply(instance, StatMilestone::new));
 }

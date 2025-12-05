@@ -20,7 +20,8 @@ public class ItemUseEventHandler {
         double multiplier = 1.0;
         boolean changed = false;
 
-        for (StatUsageSpeed rule : StatUsageSpeedManager.getAllRules()) {
+        // Use optimized lookup
+        for (StatUsageSpeed rule : StatUsageSpeedManager.getRules(stack)) {
             long val = MementoAPI.getStat(stack, rule.stat());
             if (val >= rule.minInfo()) {
                 multiplier *= rule.multiplier();

@@ -18,8 +18,6 @@ import java.util.Map;
 
 public class StatEnchantmentManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-
-    // Map of StatID -> List of Enchantment Rules linked to that stat
     private static final Map<ResourceLocation, List<StatEnchantment>> RULES = new HashMap<>();
 
     public StatEnchantmentManager() {

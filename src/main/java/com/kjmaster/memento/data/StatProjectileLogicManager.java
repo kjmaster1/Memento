@@ -21,11 +21,7 @@ import java.util.Map;
 
 public class StatProjectileLogicManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-
-    // Global rules (linear scan required)
     private static final List<StatProjectileLogic> GLOBAL_RULES = new ArrayList<>();
-
-    // Indexed rules (O(1) lookup by Item)
     private static final Map<Item, List<StatProjectileLogic>> INDEXED_RULES = new HashMap<>();
 
     public StatProjectileLogicManager() {
@@ -42,14 +38,12 @@ public class StatProjectileLogicManager extends SimpleJsonResourceReloadListener
             StatProjectileLogic.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse projectile logic rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.optimizedItems().isPresent() && !rule.optimizedItems().get().isEmpty()) {
-                            // Index this rule
-                            for (ResourceLocation itemId : rule.optimizedItems().get()) {
+                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
+                            for (ResourceLocation itemId : rule.items().get()) {
                                 Item item = BuiltInRegistries.ITEM.get(itemId);
                                 INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {
-                            // Fallback to global
                             GLOBAL_RULES.add(rule);
                         }
                     });
@@ -60,12 +54,9 @@ public class StatProjectileLogicManager extends SimpleJsonResourceReloadListener
 
     public static List<StatProjectileLogic> getRules(ItemStack stack) {
         List<StatProjectileLogic> results = new ArrayList<>(GLOBAL_RULES);
-
         if (!stack.isEmpty()) {
             List<StatProjectileLogic> indexed = INDEXED_RULES.get(stack.getItem());
-            if (indexed != null) {
-                results.addAll(indexed);
-            }
+            if (indexed != null) results.addAll(indexed);
         }
         return results;
     }
