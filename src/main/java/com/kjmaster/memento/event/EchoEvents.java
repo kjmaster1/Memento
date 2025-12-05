@@ -74,8 +74,9 @@ public class EchoEvents {
         boolean cooldownChanged = false;
 
         for (StatEchoRule rule : rules) {
+            // Updated to use HolderSet check
             if (rule.items().isPresent()) {
-                if (rule.items().get().stream().noneMatch(id -> id.equals(BuiltInRegistries.ITEM.getKey(stack.getItem())))) {
+                if (!rule.items().get().contains(stack.getItemHolder())) {
                     continue;
                 }
             }

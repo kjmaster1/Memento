@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -18,9 +20,11 @@ import java.util.Map;
 public class StatSynergyManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final List<StatSynergy> SYNERGIES = new ArrayList<>();
+    private final HolderLookup.Provider registries;
 
-    public StatSynergyManager() {
+    public StatSynergyManager(HolderLookup.Provider registries) {
         super(GSON, "stat_synergies");
+        this.registries = registries;
     }
 
     @Override
@@ -28,11 +32,11 @@ public class StatSynergyManager extends SimpleJsonResourceReloadListener {
         SYNERGIES.clear();
         int count = 0;
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
             ResourceLocation id = entry.getKey();
-            // We use the JSON content but ensure the ID matches the file location for consistency if needed,
-            // or just rely on the ID inside the JSON. Here we prefer the JSON's ID field for flexibility.
-            StatSynergy.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatSynergy.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse synergy {}: {}", id, err))
                     .ifPresent(SYNERGIES::add);
             count++;

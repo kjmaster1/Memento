@@ -47,11 +47,10 @@ public class MilestoneEventHandler {
 
         UnlockedMilestones unlocked = stack.getOrDefault(ModDataComponents.MILESTONES, UnlockedMilestones.EMPTY);
         boolean changed = false;
-        ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
 
         for (StatMilestone milestone : milestones) {
             // Apply Item Filter
-            if (milestone.items().isPresent() && !milestone.items().get().contains(itemKey)) {
+            if (milestone.items().isPresent() && !milestone.items().get().contains(stack.getItemHolder())) {
                 continue;
             }
 

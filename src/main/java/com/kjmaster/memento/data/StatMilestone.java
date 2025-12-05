@@ -3,9 +3,13 @@ package com.kjmaster.memento.data;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.advancements.critereon.ItemPredicate;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -20,7 +24,7 @@ public record StatMilestone(
         List<String> rewards,
         Optional<ItemStack> replacementItem,
         boolean keepStats,
-        Optional<List<ResourceLocation>> items
+        Optional<HolderSet<Item>> items
 ) {
     public static final Codec<StatMilestone> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.fieldOf("stat").forGetter(StatMilestone::statId),
@@ -31,6 +35,6 @@ public record StatMilestone(
             Codec.STRING.listOf().optionalFieldOf("rewards", List.of()).forGetter(StatMilestone::rewards),
             ItemStack.CODEC.optionalFieldOf("transform_into").forGetter(StatMilestone::replacementItem),
             Codec.BOOL.optionalFieldOf("keep_stats", true).forGetter(StatMilestone::keepStats),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatMilestone::items)
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatMilestone::items)
     ).apply(instance, StatMilestone::new));
 }

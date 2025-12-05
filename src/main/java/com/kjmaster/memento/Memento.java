@@ -6,6 +6,7 @@ import com.kjmaster.memento.data.*;
 import com.kjmaster.memento.event.*;
 import com.kjmaster.memento.registry.*;
 import com.mojang.logging.LogUtils;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -75,25 +76,26 @@ public class Memento {
     }
 
     private void addReloadListener(AddReloadListenerEvent event) {
+        HolderLookup.Provider registryAccess = event.getRegistryAccess();
         List.of(
-                new StatMilestoneManager(event.getRegistryAccess()),
-                new StatTriggerManager(event.getRegistryAccess()),
-                new StatAttributeManager(),
-                new StatEffectManager(),
-                new StatEnchantmentManager(),
-                new StatRepairCapManager(),
+                new StatMilestoneManager(registryAccess),
+                new StatTriggerManager(registryAccess),
+                new StatAttributeManager(registryAccess),
+                new StatEffectManager(registryAccess),
+                new StatEnchantmentManager(registryAccess),
+                new StatRepairCapManager(registryAccess),
                 new StatBehaviorManager(),
-                new StatUsageSpeedManager(),
-                new StatProjectileLogicManager(),
-                new StatVisualPrestigeManager(),
-                new StatMasteryManager(),
-                new StatTransferFilterManager(event.getRegistryAccess()),
-                new StatRequirementManager(event.getRegistryAccess()),
-                new StatLoreManager(),
-                new StatEchoManager(),
-                new StatTierManager(event.getRegistryAccess()),
-                new StatSynergyManager(),
-                new StatDecayManager(event.getRegistryAccess())
+                new StatUsageSpeedManager(registryAccess),
+                new StatProjectileLogicManager(registryAccess),
+                new StatVisualPrestigeManager(registryAccess),
+                new StatMasteryManager(registryAccess),
+                new StatTransferFilterManager(registryAccess),
+                new StatRequirementManager(registryAccess),
+                new StatLoreManager(registryAccess),
+                new StatEchoManager(registryAccess),
+                new StatTierManager(registryAccess),
+                new StatSynergyManager(registryAccess),
+                new StatDecayManager(registryAccess)
         ).forEach(event::addListener);
     }
 }

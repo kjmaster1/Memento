@@ -2,8 +2,12 @@ package com.kjmaster.memento.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,7 +21,7 @@ public record StatEchoRule(
         List<Condition> conditions,
         Parameters parameters,
         int cooldownTicks,
-        Optional<List<ResourceLocation>> items // Renamed from optimizedItems
+        Optional<HolderSet<Item>> items
 ) {
     public static final Codec<StatEchoRule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Trigger.CODEC.fieldOf("trigger").forGetter(StatEchoRule::trigger),
@@ -25,7 +29,7 @@ public record StatEchoRule(
             Condition.CODEC.listOf().fieldOf("conditions").forGetter(StatEchoRule::conditions),
             Parameters.CODEC.optionalFieldOf("parameters", Parameters.EMPTY).forGetter(StatEchoRule::parameters),
             Codec.INT.optionalFieldOf("cooldown", 20).forGetter(StatEchoRule::cooldownTicks),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatEchoRule::items)
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatEchoRule::items)
     ).apply(instance, (trigger, action, conditions, params, cool, items) ->
             new StatEchoRule(ResourceLocation.parse("memento:runtime"), trigger, action, conditions, params, cool, items)));
 

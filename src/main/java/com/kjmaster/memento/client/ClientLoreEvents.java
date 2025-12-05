@@ -70,7 +70,7 @@ public class ClientLoreEvents {
         for (StatLoreRule rule : StatLoreManager.getAllRules()) {
 
             if (rule.items().isPresent()) {
-                if (!rule.items().get().contains(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                if (!rule.items().get().contains(stack.getItemHolder())) {
                     continue;
                 }
             }

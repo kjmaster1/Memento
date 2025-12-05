@@ -5,7 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -23,9 +25,11 @@ public class StatRepairCapManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final List<StatRepairCap> GLOBAL_RULES = new ArrayList<>();
     private static final Map<Item, List<StatRepairCap>> INDEXED_RULES = new HashMap<>();
+    private final HolderLookup.Provider registries;
 
-    public StatRepairCapManager() {
+    public StatRepairCapManager(HolderLookup.Provider registries) {
         super(GSON, "stat_repair_caps");
+        this.registries = registries;
     }
 
     @Override
@@ -34,13 +38,15 @@ public class StatRepairCapManager extends SimpleJsonResourceReloadListener {
         INDEXED_RULES.clear();
         int count = 0;
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatRepairCap.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatRepairCap.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse repair cap rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
-                            for (ResourceLocation itemId : rule.items().get()) {
-                                Item item = BuiltInRegistries.ITEM.get(itemId);
+                        if (rule.items().isPresent() && rule.items().get().size() > 0) {
+                            for (Holder<Item> holder : rule.items().get()) {
+                                Item item = holder.value();
                                 INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {

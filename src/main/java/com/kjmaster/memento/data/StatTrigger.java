@@ -6,9 +6,12 @@ import net.minecraft.advancements.critereon.BlockPredicate;
 import net.minecraft.advancements.critereon.EntityPredicate;
 import net.minecraft.advancements.critereon.ItemPredicate;
 import net.minecraft.advancements.critereon.LocationPredicate;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 
-import java.util.List;
 import java.util.Optional;
 
 public record StatTrigger(
@@ -19,7 +22,7 @@ public record StatTrigger(
         Optional<ItemPredicate> subjectItem,
         Optional<BlockPredicate> block,
         Optional<EntityPredicate> target,
-        Optional<List<ResourceLocation>> items,
+        Optional<HolderSet<Item>> items,
         Optional<LocationPredicate> location,
         Optional<String> weather
 ) {
@@ -31,7 +34,7 @@ public record StatTrigger(
             ItemPredicate.CODEC.optionalFieldOf("subject_item").forGetter(StatTrigger::subjectItem),
             BlockPredicate.CODEC.optionalFieldOf("block").forGetter(StatTrigger::block),
             EntityPredicate.CODEC.optionalFieldOf("target").forGetter(StatTrigger::target),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatTrigger::items),
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatTrigger::items),
             LocationPredicate.CODEC.optionalFieldOf("location").forGetter(StatTrigger::location),
             Codec.STRING.optionalFieldOf("weather").forGetter(StatTrigger::weather)
     ).apply(instance, StatTrigger::new));

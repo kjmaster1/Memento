@@ -5,8 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -42,9 +42,9 @@ public class StatTransferFilterManager extends SimpleJsonResourceReloadListener 
             StatTransferFilter.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse transfer filter {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
-                            for (ResourceLocation itemId : rule.items().get()) {
-                                Item item = BuiltInRegistries.ITEM.get(itemId);
+                        if (rule.items().isPresent() && rule.items().get().size() > 0) {
+                            for (Holder<Item> holder : rule.items().get()) {
+                                Item item = holder.value();
                                 INDEXED_RULES.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {

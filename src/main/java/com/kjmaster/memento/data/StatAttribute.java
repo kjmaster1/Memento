@@ -2,15 +2,18 @@ package com.kjmaster.memento.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Optional;
 
 public record StatAttribute(
@@ -23,7 +26,7 @@ public record StatAttribute(
         EquipmentSlotGroup slots,
         ScalingFunction scalingFunction,
         double exponent,
-        Optional<List<ResourceLocation>> items
+        Optional<HolderSet<Item>> items
 ) {
     public enum ScalingFunction implements StringRepresentable {
         LINEAR, LOGARITHMIC, EXPONENTIAL;
@@ -41,6 +44,6 @@ public record StatAttribute(
             EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatAttribute::slots),
             ScalingFunction.CODEC.optionalFieldOf("scaling_function", ScalingFunction.LINEAR).forGetter(StatAttribute::scalingFunction),
             Codec.DOUBLE.optionalFieldOf("exponent", 1.0).forGetter(StatAttribute::exponent),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatAttribute::items) // NEW FIELD
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatAttribute::items)
     ).apply(instance, StatAttribute::new));
 }

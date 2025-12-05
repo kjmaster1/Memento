@@ -2,9 +2,13 @@ package com.kjmaster.memento.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +20,7 @@ public record StatLoreRule(
         Optional<Component> nameSuffix,
         int priority,
         boolean hidden,
-        Optional<List<ResourceLocation>> items
+        Optional<HolderSet<Item>> items
 ) {
     public static final Codec<StatLoreRule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Condition.CODEC.listOf().fieldOf("conditions").forGetter(StatLoreRule::conditions),
@@ -25,7 +29,7 @@ public record StatLoreRule(
             ComponentSerialization.CODEC.optionalFieldOf("name_suffix").forGetter(StatLoreRule::nameSuffix),
             Codec.INT.optionalFieldOf("priority", 0).forGetter(StatLoreRule::priority),
             Codec.BOOL.optionalFieldOf("hidden", false).forGetter(StatLoreRule::hidden),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatLoreRule::items)
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatLoreRule::items)
     ).apply(instance, StatLoreRule::new));
 
     public record Condition(ResourceLocation stat, long min) {

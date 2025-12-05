@@ -2,15 +2,18 @@ package com.kjmaster.memento.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlotGroup;
+import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Optional;
 
 public record StatEffect(
@@ -23,7 +26,7 @@ public record StatEffect(
         Target target,
         EffectContext context,
         EquipmentSlotGroup slots,
-        Optional<List<ResourceLocation>> items // Renamed from optimizedItems
+        Optional<HolderSet<Item>> items
 ) {
     public enum Target implements StringRepresentable {
         USER, ATTACK_TARGET;
@@ -46,7 +49,7 @@ public record StatEffect(
             Codec.STRING.xmap(Target::valueOf, Target::name).optionalFieldOf("target", Target.ATTACK_TARGET).forGetter(StatEffect::target),
             EffectContext.CODEC.optionalFieldOf("context", EffectContext.ATTACK).forGetter(StatEffect::context),
             EquipmentSlotGroup.CODEC.optionalFieldOf("slots", EquipmentSlotGroup.ANY).forGetter(StatEffect::slots),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatEffect::items)
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatEffect::items)
     ).apply(instance, StatEffect::new));
 
     public MobEffectInstance createInstance() {

@@ -3,11 +3,14 @@ package com.kjmaster.memento.data;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.advancements.critereon.ItemPredicate;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Optional;
 
 public record StatRequirement(
@@ -17,7 +20,7 @@ public record StatRequirement(
         RequirementScope scope,
         Optional<ItemPredicate> sourceMatcher,
         Optional<String> failureMessage,
-        Optional<List<ResourceLocation>> items // Renamed from optimizedItems
+        Optional<HolderSet<Item>> items
 ) {
     public enum RequirementScope implements StringRepresentable {
         SELF, INVENTORY;
@@ -32,6 +35,6 @@ public record StatRequirement(
             RequirementScope.CODEC.optionalFieldOf("scope", RequirementScope.SELF).forGetter(StatRequirement::scope),
             ItemPredicate.CODEC.optionalFieldOf("source_matcher").forGetter(StatRequirement::sourceMatcher),
             Codec.STRING.optionalFieldOf("failure_message").forGetter(StatRequirement::failureMessage),
-            ResourceLocation.CODEC.listOf().optionalFieldOf("items").forGetter(StatRequirement::items)
+            RegistryCodecs.homogeneousList(Registries.ITEM).optionalFieldOf("items").forGetter(StatRequirement::items)
     ).apply(instance, StatRequirement::new));
 }

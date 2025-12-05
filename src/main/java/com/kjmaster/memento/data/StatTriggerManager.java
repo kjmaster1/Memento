@@ -5,8 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -44,11 +44,11 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
             StatTrigger.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse trigger {}: {}", entry.getKey(), err))
                     .ifPresent(trigger -> {
-                        if (trigger.items().isPresent() && !trigger.items().get().isEmpty()) {
+                        if (trigger.items().isPresent() && trigger.items().get().size() > 0) {
                             Map<Item, List<StatTrigger>> typeMap = INDEXED_TRIGGERS.computeIfAbsent(trigger.type(), k -> new HashMap<>());
-                            for (ResourceLocation itemId : trigger.items().get()) {
-                                Item item = BuiltInRegistries.ITEM.get(itemId);
-                                if (item == Items.AIR && !itemId.equals(ResourceLocation.withDefaultNamespace("air"))) {
+                            for (Holder<Item> holder : trigger.items().get()) {
+                                Item item = holder.value();
+                                if (item == Items.AIR && !holder.is(ResourceLocation.withDefaultNamespace("air"))) {
                                     continue;
                                 }
                                 typeMap.computeIfAbsent(item, k -> new ArrayList<>()).add(trigger);

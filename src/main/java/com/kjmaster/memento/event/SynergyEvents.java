@@ -31,13 +31,12 @@ public class SynergyEvents {
 
         UnlockedSynergies unlocked = stack.getOrDefault(ModDataComponents.UNLOCKED_SYNERGIES, UnlockedSynergies.EMPTY);
         boolean changed = false;
-        ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
 
         for (StatSynergy synergy : StatSynergyManager.getAllSynergies()) {
             if (unlocked.hasUnlocked(synergy.id())) continue;
 
             // Apply Item Filter
-            if (synergy.items().isPresent() && !synergy.items().get().contains(itemKey)) {
+            if (synergy.items().isPresent() && !synergy.items().get().contains(stack.getItemHolder())) {
                 continue;
             }
 

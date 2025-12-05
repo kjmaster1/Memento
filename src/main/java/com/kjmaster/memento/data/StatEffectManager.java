@@ -5,7 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -23,9 +25,11 @@ public class StatEffectManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final Map<StatEffect.EffectContext, List<StatEffect>> GLOBAL_RULES = new HashMap<>();
     private static final Map<StatEffect.EffectContext, Map<Item, List<StatEffect>>> INDEXED_RULES = new HashMap<>();
+    private final HolderLookup.Provider registries;
 
-    public StatEffectManager() {
+    public StatEffectManager(HolderLookup.Provider registries) {
         super(GSON, "stat_effects");
+        this.registries = registries;
     }
 
     @Override
@@ -34,14 +38,16 @@ public class StatEffectManager extends SimpleJsonResourceReloadListener {
         INDEXED_RULES.clear();
         int count = 0;
 
+        RegistryOps<JsonElement> registryOps = RegistryOps.create(JsonOps.INSTANCE, this.registries);
+
         for (Map.Entry<ResourceLocation, JsonElement> entry : object.entrySet()) {
-            StatEffect.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
+            StatEffect.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse stat effect {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
+                        if (rule.items().isPresent() && rule.items().get().size() > 0) {
                             Map<Item, List<StatEffect>> contextMap = INDEXED_RULES.computeIfAbsent(rule.context(), k -> new HashMap<>());
-                            for (ResourceLocation itemId : rule.items().get()) {
-                                Item item = BuiltInRegistries.ITEM.get(itemId);
+                            for (Holder<Item> holder : rule.items().get()) {
+                                Item item = holder.value();
                                 contextMap.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {

@@ -5,8 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.kjmaster.memento.Memento;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -43,10 +43,10 @@ public class StatDecayManager extends SimpleJsonResourceReloadListener {
             StatDecayRule.CODEC.parse(registryOps, entry.getValue())
                     .resultOrPartial(err -> Memento.LOGGER.error("Failed to parse decay rule {}: {}", entry.getKey(), err))
                     .ifPresent(rule -> {
-                        if (rule.items().isPresent() && !rule.items().get().isEmpty()) {
+                        if (rule.items().isPresent() && rule.items().get().size() > 0) {
                             Map<Item, List<StatDecayRule>> typeMap = INDEXED_RULES.computeIfAbsent(rule.trigger(), k -> new HashMap<>());
-                            for (ResourceLocation itemId : rule.items().get()) {
-                                Item item = BuiltInRegistries.ITEM.get(itemId);
+                            for (Holder<Item> holder : rule.items().get()) {
+                                Item item = holder.value();
                                 typeMap.computeIfAbsent(item, k -> new ArrayList<>()).add(rule);
                             }
                         } else {

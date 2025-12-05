@@ -34,9 +34,9 @@ public class AttributeEventHandler {
         boolean needsUpdate = false;
 
         for (StatAttribute rule : rules) {
-            // FIX: Check Item Filter
+            // Check Item Filter (HolderSet)
             if (rule.items().isPresent()) {
-                if (!rule.items().get().contains(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                if (!rule.items().get().contains(stack.getItemHolder())) {
                     continue;
                 }
             }
@@ -68,7 +68,7 @@ public class AttributeEventHandler {
             // Only remove if it matches a rule AND the item restriction matches
             boolean isManagedAndMatching = rules.stream().anyMatch(r ->
                     r.modifierId().equals(entry.modifier().id()) &&
-                            (r.items().isEmpty() || r.items().get().contains(BuiltInRegistries.ITEM.getKey(stack.getItem())))
+                            (r.items().isEmpty() || r.items().get().contains(stack.getItemHolder()))
             );
 
             if (!isManagedAndMatching) {
@@ -78,9 +78,9 @@ public class AttributeEventHandler {
 
         // 2. Add new modifiers
         for (StatAttribute rule : rules) {
-            // FIX: Check Item Filter
+            // Check Item Filter (HolderSet)
             if (rule.items().isPresent()) {
-                if (!rule.items().get().contains(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                if (!rule.items().get().contains(stack.getItemHolder())) {
                     continue;
                 }
             }

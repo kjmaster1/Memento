@@ -3,10 +3,8 @@ package com.kjmaster.memento.event;
 import com.kjmaster.memento.api.event.StatChangeEvent;
 import com.kjmaster.memento.data.StatEnchantment;
 import com.kjmaster.memento.data.StatEnchantmentManager;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
@@ -23,7 +21,6 @@ public class EnchantmentEventHandler {
 
         ItemStack stack = event.getItem();
         long statValue = event.getNewValue();
-        ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
 
         ItemEnchantments currentEnchants = stack.getTagEnchantments();
         ItemEnchantments.Mutable newEnchants = new ItemEnchantments.Mutable(currentEnchants);
@@ -32,8 +29,8 @@ public class EnchantmentEventHandler {
         var registryAccess = event.getEntity().registryAccess();
 
         for (StatEnchantment rule : rules) {
-            // Apply Item Filter
-            if (rule.items().isPresent() && !rule.items().get().contains(itemKey)) {
+            // Apply Item Filter using HolderSet
+            if (rule.items().isPresent() && !rule.items().get().contains(stack.getItemHolder())) {
                 continue;
             }
 

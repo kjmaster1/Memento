@@ -26,8 +26,6 @@ public class MementoAPI {
 
     private static final ThreadLocal<Set<RecursionKey>> RECURSION_GUARD = ThreadLocal.withInitial(HashSet::new);
 
-    // --- Standard Methods (Default: fireEvents = true) ---
-
     public static void incrementStat(LivingEntity entity, ItemStack stack, ResourceLocation statId, long amount) {
         updateStat(entity, stack, statId, amount, Long::sum, true);
     }
@@ -40,8 +38,6 @@ public class MementoAPI {
         updateStat(entity, stack, statId, value, mergeFunction, true);
     }
 
-    // --- Overloads with Control Flags ---
-
     public static void incrementStat(LivingEntity entity, ItemStack stack, ResourceLocation statId, long amount, boolean fireEvents) {
         updateStat(entity, stack, statId, amount, Long::sum, fireEvents);
     }
@@ -50,32 +46,24 @@ public class MementoAPI {
         updateStat(entity, stack, statId, value, Math::max, fireEvents);
     }
 
-    /**
-     * Updates a stat on the item.
-     */
     public static void updateStat(LivingEntity entity, ItemStack stack, ResourceLocation statId, long value, BiFunction<Long, Long, Long> mergeFunction, boolean fireEvents) {
         if (stack.isEmpty() || stack.getMaxStackSize() > 1) return;
 
-        // Check if Sealed (Optimization: prevents firing events for locked stats)
         if (isSealed(stack, statId)) return;
 
-        // Ensure UUID exists for recursion guard identity, even if provider is external
         if (!stack.has(ModDataComponents.ITEM_UUID)) {
             stack.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
         }
 
-        // --- Ownership Logic ---
         if (entity instanceof ServerPlayer) {
             updateOwnership(entity, stack);
         }
 
         UUID itemUuid = stack.get(ModDataComponents.ITEM_UUID);
 
-        // 1. GET (Delegated)
         IStatProvider provider = StatProviderRegistry.getProvider(stack, statId);
         long oldValue = provider.getStat(stack, statId);
 
-        // 2. CALC
         long newValue = mergeFunction.apply(oldValue, value);
 
         if (newValue == oldValue) return;
@@ -90,7 +78,6 @@ public class MementoAPI {
         }
 
         try {
-            // 3. Fire PRE Event (Cancellable)
             if (shouldFire) {
                 StatChangeEvent.Pre preEvent = new StatChangeEvent.Pre(entity, stack, statId, oldValue, newValue);
                 if (NeoForge.EVENT_BUS.post(preEvent).isCanceled()) {
@@ -98,11 +85,8 @@ public class MementoAPI {
                 }
             }
 
-            // 4. SET (Delegated)
-            // Note: We re-fetch provider in case the item state changed significantly, but usually it's the same
             provider.setStat(stack, statId, newValue);
 
-            // 5. Fire POST Event (Logic Hooks)
             if (shouldFire) {
                 NeoForge.EVENT_BUS.post(new StatChangeEvent.Post(entity, stack, statId, oldValue, newValue));
             }
@@ -114,11 +98,9 @@ public class MementoAPI {
     }
 
     private static void updateOwnership(LivingEntity entity, ItemStack stack) {
-        // If the item has no metadata, create it now (e.g. found loot)
         if (!stack.has(ModDataComponents.ITEM_METADATA)) {
             String playerName = entity.getName().getString();
             long worldDay = entity.level().getDayTime() / 24000L;
-            // Original Name is current name since we just found/started using it
             String originalName = stack.getHoverName().getString();
 
             stack.set(ModDataComponents.ITEM_METADATA, new ItemMetadata(playerName, worldDay, originalName, List.of()));
@@ -128,15 +110,12 @@ public class MementoAPI {
         ItemMetadata meta = stack.get(ModDataComponents.ITEM_METADATA);
         String currentPlayer = entity.getName().getString();
 
-        // 1. If I am the creator, do nothing
         if (meta.creatorName().equals(currentPlayer)) return;
 
-        // 2. If I am already the last person in the history, do nothing
         if (!meta.wieldedBy().isEmpty()) {
             if (meta.wieldedBy().getLast().ownerName().equals(currentPlayer)) return;
         }
 
-        // 3. New Owner! Add to history
         long worldDay = entity.level().getDayTime() / 24000L;
         List<ItemMetadata.OwnerEntry> newHistory = new ArrayList<>(meta.wieldedBy());
         newHistory.add(new ItemMetadata.OwnerEntry(currentPlayer, worldDay));
@@ -152,8 +131,6 @@ public class MementoAPI {
     public static void sealStat(ItemStack stack, ResourceLocation statId) {
         if (stack.isEmpty()) return;
 
-        // Currently, sealing is only supported on the native TrackerMap implementation.
-        // Custom providers would need their own logic, which we can't enforce via IStatProvider yet.
         if (stack.has(ModDataComponents.TRACKER_MAP)) {
             stack.update(ModDataComponents.TRACKER_MAP, TrackerMap.EMPTY, map -> map.seal(statId));
         }
@@ -161,18 +138,12 @@ public class MementoAPI {
 
     public static boolean isSealed(ItemStack stack, ResourceLocation statId) {
         if (stack.isEmpty()) return false;
-        // Native support
         if (stack.has(ModDataComponents.TRACKER_MAP)) {
             return stack.get(ModDataComponents.TRACKER_MAP).isSealed(statId);
         }
         return false;
     }
 
-    /**
-     * Sends a lightweight packet to update a single stat on the client.
-     * Useful for high-frequency updates (e.g., flight distance) where you want the visual feedback
-     * immediately, but defer the server-side persistence (and full component sync) to a Buffer Manager.
-     */
     public static void sendPartialUpdate(ServerPlayer player, ItemStack stack, ResourceLocation statId, long value) {
         if (stack.isEmpty() || !stack.has(ModDataComponents.ITEM_UUID)) return;
 
@@ -183,12 +154,6 @@ public class MementoAPI {
         ));
     }
 
-    /**
-     * Merges two TrackerMaps according to the registered StatBehaviors (SUM, MAX, MIN, AVERAGE).
-     * @param base The original map (e.g., the item being kept).
-     * @param incoming The map being merged in (e.g., the item being sacrificed).
-     * @return A new TrackerMap containing the combined stats.
-     */
     public static TrackerMap mergeStats(TrackerMap base, TrackerMap incoming) {
         if (incoming.stats().isEmpty()) return base;
 
@@ -196,19 +161,16 @@ public class MementoAPI {
         Map<ResourceLocation, Integer> newCounts = new HashMap<>(base.counts());
         Set<ResourceLocation> newSealed = new HashSet<>(base.sealed());
 
-        // Merge sealed status (if it was sealed on EITHER item, it remains sealed)
         newSealed.addAll(incoming.sealed());
 
         for (Map.Entry<ResourceLocation, Long> entry : incoming.stats().entrySet()) {
             ResourceLocation stat = entry.getKey();
 
-            // If the stat is sealed on the base item, we do NOT merge changes into it.
             if (base.isSealed(stat)) continue;
 
             long incomingValue = entry.getValue();
             long baseValue = base.getValue(stat);
 
-            // Get Counts (Default to 1 if data exists but count is missing)
             int incomingCount = incoming.getCount(stat);
             if (incomingCount == 0 && incomingValue != 0) incomingCount = 1;
 
@@ -243,7 +205,6 @@ public class MementoAPI {
     }
 
     public static long getStat(ItemStack stack, ResourceLocation statId) {
-        // Delegate to Registry
         return StatProviderRegistry.getProvider(stack, statId).getStat(stack, statId);
     }
 
@@ -255,7 +216,8 @@ public class MementoAPI {
 
     public static boolean isMastered(ItemStack stack) {
         if (stack.isEmpty()) return false;
-        for (StatMastery rule : StatMasteryManager.getAllRules()) {
+
+        for (StatMastery rule : StatMasteryManager.getRules(stack)) {
             if (rule.preventDamage()) {
                 long val = getStat(stack, rule.stat());
                 if (val >= rule.value()) {
