@@ -88,6 +88,7 @@ public class StatBufferManager {
             if (identityMap != null) {
                 WeakReference<ItemStack> ref = identityMap.get(uuid);
                 // If we have a tracked reference, and it doesn't match the current stack, SKIP.
+                // This includes if ref.get() is null (GC'd), preventing application to a new instance.
                 if (ref != null && ref.get() != stack) {
                     return;
                 }
@@ -162,8 +163,8 @@ public class StatBufferManager {
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            // Flush every 10 seconds (200 ticks)
-            if (player.tickCount % 200 == 0) {
+            // Flush every 1 second (20 ticks) to minimize data loss risk from GC
+            if (player.tickCount % 20 == 0) {
                 flush(player);
             }
         }

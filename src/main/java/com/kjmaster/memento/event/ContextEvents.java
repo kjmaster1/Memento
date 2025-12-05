@@ -66,14 +66,8 @@ public class ContextEvents {
                 }
 
                 if (!weapon.isEmpty()) {
-                    // Apply Velocity
-                    float velMult = ProjectileLogicHelper.getVelocityMultiplier(weapon);
-                    if (velMult != 1.0f) {
-                        projectile.setDeltaMovement(projectile.getDeltaMovement().scale(velMult));
-                    }
-
-                    // Apply Damage
-                    ProjectileLogicHelper.applyDamageModifier(weapon, projectile);
+                    // Optimized single pass: Applies Velocity and Damage multipliers together
+                    ProjectileLogicHelper.applyEntityJoinBallistics(weapon, projectile);
 
                     // Mark applied so chunk reloading doesn't multiply it again
                     projectile.setData(ModDataAttachments.BALLISTICS_APPLIED, true);
