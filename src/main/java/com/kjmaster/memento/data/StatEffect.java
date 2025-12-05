@@ -2,6 +2,7 @@ package com.kjmaster.memento.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.StringRepresentable;
@@ -63,6 +64,6 @@ public record StatEffect(
     ).apply(instance, StatEffect::new));
 
     public MobEffectInstance createInstance() {
-        return new MobEffectInstance(effect, durationTicks, amplifier);
+        return new MobEffectInstance(Holder.direct(effect), durationTicks, amplifier);
     }
 }

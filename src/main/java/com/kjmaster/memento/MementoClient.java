@@ -10,6 +10,7 @@ import com.kjmaster.memento.registry.ModStats;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
@@ -18,16 +19,15 @@ import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactori
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
-import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(value = Memento.MODID, dist = Dist.CLIENT)
 public class MementoClient {
-    public MementoClient(ModContainer container) {
+    public MementoClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-        NeoForge.EVENT_BUS.addListener(this::clientSetup);
-        NeoForge.EVENT_BUS.addListener(this::registerReloadListeners);
-        NeoForge.EVENT_BUS.addListener(this::registerTooltipFactories);
-        NeoForge.EVENT_BUS.addListener(this::registerKeyMappings);
+        modEventBus.addListener(this::clientSetup);
+        modEventBus.addListener(this::registerReloadListeners);
+        modEventBus.addListener(this::registerTooltipFactories);
+        modEventBus.addListener(this::registerKeyMappings);
     }
 
     private void registerReloadListeners(RegisterClientReloadListenersEvent event) {

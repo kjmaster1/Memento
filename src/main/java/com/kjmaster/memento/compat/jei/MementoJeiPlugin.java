@@ -10,6 +10,7 @@ import com.kjmaster.memento.data.StatMilestoneManager;
 import com.kjmaster.memento.registry.ModItems;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.resources.ResourceLocation;
@@ -44,7 +45,10 @@ public class MementoJeiPlugin implements IModPlugin {
         // Register Effects
         List<StatEffect> effects = StatEffectManager.getAllRules();
         registration.addRecipes(StatEffectCategory.TYPE, effects);
+    }
 
+    @Override
+    public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
         // Add the Memento Crystal as a catalyst for these categories so users can find them easily
         registration.addRecipeCatalyst(new ItemStack(ModItems.MEMENTO_CRYSTAL.get()), MilestoneCategory.TYPE);
         registration.addRecipeCatalyst(new ItemStack(ModItems.MEMENTO_CRYSTAL.get()), StatEffectCategory.TYPE);
