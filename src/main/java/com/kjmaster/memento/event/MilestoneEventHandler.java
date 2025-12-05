@@ -11,6 +11,7 @@ import com.kjmaster.memento.registry.ModDataComponents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -122,22 +123,43 @@ public class MilestoneEventHandler {
         if (entity instanceof ServerPlayer player) {
 
             // 2. Visuals & Rewards
-            if (allowFeedback && milestone.titleName().isPresent()) {
-                stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
+            if (allowFeedback) {
+                // PARTICLE EFFECT: "Level Up"
+                // Visible to everyone around (ServerLevel.sendParticles broadcasts to tracking players)
+                player.serverLevel().sendParticles(
+                        ParticleTypes.HAPPY_VILLAGER, // Green sparkles
+                        player.getX(), player.getY() + 1.0, player.getZ(), // Center
+                        20, // Count
+                        0.5, 0.5, 0.5, // Spread (X, Y, Z)
+                        0.1 // Speed
+                );
 
-                ItemStack visualStack = createVisualCopy(stack);
-                PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
-                        visualStack,
-                        Component.translatable("memento.toast.levelup"),
-                        milestone.titleName().get()
-                ));
-            }
+                // Add a second layer of "magic" sparkles for extra "juice"
+                player.serverLevel().sendParticles(
+                        ParticleTypes.END_ROD, // White magic sparkles
+                        player.getX(), player.getY() + 1.0, player.getZ(),
+                        10,
+                        0.3, 0.5, 0.3,
+                        0.05
+                );
 
-            if (allowFeedback && milestone.soundId().isPresent()) {
-                ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
-                SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (sound != null) {
-                    player.level().playSound(null, player.blockPosition(), sound, SoundSource.PLAYERS, 1.0f, 1.0f);
+                if (milestone.titleName().isPresent()) {
+                    stack.set(DataComponents.CUSTOM_NAME, milestone.titleName().get());
+
+                    ItemStack visualStack = createVisualCopy(stack);
+                    PacketDistributor.sendToPlayer(player, new MilestoneToastPayload(
+                            visualStack,
+                            Component.translatable("memento.toast.levelup"),
+                            milestone.titleName().get()
+                    ));
+                }
+
+                if (milestone.soundId().isPresent()) {
+                    ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
+                    SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                    if (sound != null) {
+                        player.level().playSound(null, player.blockPosition(), sound, SoundSource.PLAYERS, 1.0f, 1.0f);
+                    }
                 }
             }
 
@@ -150,11 +172,22 @@ public class MilestoneEventHandler {
             }
         } else {
             // For non-players, simple Sound support at location (Throttled)
-            if (allowFeedback && milestone.soundId().isPresent()) {
-                ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
-                SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (sound != null) {
-                    entity.level().playSound(null, entity.blockPosition(), sound, SoundSource.NEUTRAL, 1.0f, 1.0f);
+            if (allowFeedback) {
+                // Also give mobs particles so you know their item leveled up!
+                if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                    serverLevel.sendParticles(
+                            ParticleTypes.HAPPY_VILLAGER,
+                            entity.getX(), entity.getY() + 0.5, entity.getZ(),
+                            10, 0.5, 0.5, 0.5, 0.1
+                    );
+                }
+
+                if (milestone.soundId().isPresent()) {
+                    ResourceLocation soundLoc = ResourceLocation.parse(milestone.soundId().get());
+                    SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                    if (sound != null) {
+                        entity.level().playSound(null, entity.blockPosition(), sound, SoundSource.NEUTRAL, 1.0f, 1.0f);
+                    }
                 }
             }
         }

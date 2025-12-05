@@ -3,6 +3,7 @@ package com.kjmaster.memento.event;
 import com.kjmaster.memento.Config;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModStats;
+import com.kjmaster.memento.registry.ModTags;
 import com.kjmaster.memento.util.ItemContextHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
@@ -26,6 +27,8 @@ public class CultivationEvents {
         if (!Config.isDefaultEnabled(ModStats.CROPS_HARVESTED)) return;
 
         if (event.getPlayer() instanceof ServerPlayer player) {
+            if (event.getState().is(ModTags.STAT_BLACKLIST_BLOCKS)) return;
+
             ItemStack heldItem = player.getMainHandItem();
             BlockState state = event.getState();
 

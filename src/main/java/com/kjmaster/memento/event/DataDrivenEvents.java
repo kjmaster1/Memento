@@ -3,6 +3,7 @@ package com.kjmaster.memento.event;
 import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.data.StatTrigger;
 import com.kjmaster.memento.data.StatTriggerManager;
+import com.kjmaster.memento.registry.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,6 +22,7 @@ public class DataDrivenEvents {
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
+        if (event.getState().is(ModTags.STAT_BLACKLIST_BLOCKS)) return;
 
         ItemStack stack = player.getMainHandItem();
         List<StatTrigger> triggers = StatTriggerManager.getTriggers(StatTrigger.TriggerType.BLOCK_BREAK, stack);

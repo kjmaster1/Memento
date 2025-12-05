@@ -3,6 +3,7 @@ package com.kjmaster.memento.registry;
 import com.kjmaster.memento.Memento;
 import com.kjmaster.memento.network.ClientPayloadHandler;
 import com.kjmaster.memento.network.MilestoneToastPayload;
+import com.kjmaster.memento.network.StatRegistryPayload;
 import com.kjmaster.memento.network.StatUpdatePayload;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -27,6 +28,12 @@ public class ModMessages {
                 StatUpdatePayload.TYPE,
                 StatUpdatePayload.STREAM_CODEC,
                 ClientPayloadHandler::handleStatUpdate
+        );
+
+        registrar.playToClient(
+                StatRegistryPayload.TYPE,
+                StatRegistryPayload.STREAM_CODEC,
+                StatRegistryPayload::handle
         );
     }
 }

@@ -12,6 +12,7 @@ import net.minecraft.util.profiling.ProfilerFiller;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class StatBehaviorManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -35,5 +36,9 @@ public class StatBehaviorManager extends SimpleJsonResourceReloadListener {
 
     public static StatBehavior.MergeStrategy getStrategy(ResourceLocation stat) {
         return STRATEGIES.getOrDefault(stat, StatBehavior.MergeStrategy.SUM);
+    }
+
+    public static Set<ResourceLocation> getKnownStats() {
+        return STRATEGIES.keySet();
     }
 }

@@ -59,6 +59,8 @@ public class Memento {
         NeoForge.EVENT_BUS.register(DecayEvents.class);
 
         NeoForge.EVENT_BUS.register(ContextEvents.class);
+        
+        NeoForge.EVENT_BUS.register(StatRegistryManager.class);
 
         if (FMLEnvironment.dist.isClient()) {
             NeoForge.EVENT_BUS.register(MementoClientEvents.class);

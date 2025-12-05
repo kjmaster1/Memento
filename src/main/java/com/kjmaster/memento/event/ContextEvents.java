@@ -5,6 +5,7 @@ import com.kjmaster.memento.api.MementoAPI;
 import com.kjmaster.memento.registry.ModDataAttachments;
 import com.kjmaster.memento.registry.ModDataComponents;
 import com.kjmaster.memento.registry.ModStats;
+import com.kjmaster.memento.registry.ModTags;
 import com.kjmaster.memento.util.ItemContextHelper;
 import com.kjmaster.memento.util.ProjectileLogicHelper;
 import com.kjmaster.memento.util.SlotHelper;
@@ -52,29 +53,46 @@ public class ContextEvents {
     public static void onEntityJoin(EntityJoinLevelEvent event) {
         if (event.getEntity() instanceof Projectile projectile && !event.getLevel().isClientSide) {
 
-            // 1. BALLISTICS APPLICATION (Moved from ProjectileMixin)
-            // This runs for ANY projectile, ensuring compatibility with combat mods.
-            if (!projectile.getData(ModDataAttachments.BALLISTICS_APPLIED)) {
+            // 1. INFER SOURCE WEAPON (Compatibility Fallback)
+            // If the projectile lacks a source (e.g. spawned by a Gun Mod skipping vanilla shoot hooks),
+            // try to grab it from the owner's hand immediately.
+            ItemStack weapon = ItemStack.EMPTY;
 
-                // Identify Weapon
-                ItemStack weapon = ItemStack.EMPTY;
-                if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
-                    weapon = projectile.getData(ModDataAttachments.SOURCE_STACK);
-                } else if (projectile.getOwner() instanceof ServerPlayer sp) {
-                    weapon = sp.getMainHandItem();
-                    if (!ItemContextHelper.isRangedWeapon(weapon)) weapon = sp.getOffhandItem();
+            if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
+                weapon = projectile.getData(ModDataAttachments.SOURCE_STACK);
+            }
+
+            // If no data attached yet, try to infer from owner
+            if (weapon.isEmpty() && projectile.getOwner() instanceof ServerPlayer sp) {
+                ItemStack main = sp.getMainHandItem();
+                ItemStack off = sp.getOffhandItem();
+
+                if (ItemContextHelper.isRangedWeapon(main)) {
+                    weapon = main;
+                } else if (ItemContextHelper.isRangedWeapon(off)) {
+                    weapon = off;
                 }
 
+                // If we found a weapon via inference, ATTACH IT NOW so it persists for Impact/Kill events.
                 if (!weapon.isEmpty()) {
-                    // Optimized single pass: Applies Velocity and Damage multipliers together
-                    ProjectileLogicHelper.applyEntityJoinBallistics(weapon, projectile);
-
-                    // Mark applied so chunk reloading doesn't multiply it again
-                    projectile.setData(ModDataAttachments.BALLISTICS_APPLIED, true);
+                    // Ensure UUID exists for identity tracking
+                    if (!weapon.has(ModDataComponents.ITEM_UUID)) {
+                        weapon.set(ModDataComponents.ITEM_UUID, UUID.randomUUID());
+                    }
+                    projectile.setData(ModDataAttachments.SOURCE_STACK, weapon);
                 }
             }
 
-            // 2. STAT TRACKING (Shots Fired)
+            // 2. BALLISTICS APPLICATION
+            if (!weapon.isEmpty() && !projectile.getData(ModDataAttachments.BALLISTICS_APPLIED)) {
+                // Optimized single pass: Applies Velocity and Damage multipliers together
+                ProjectileLogicHelper.applyEntityJoinBallistics(weapon, projectile);
+
+                // Mark applied so chunk reloading doesn't multiply it again
+                projectile.setData(ModDataAttachments.BALLISTICS_APPLIED, true);
+            }
+
+            // 3. STAT TRACKING (Shots Fired)
             if (projectile.getOwner() instanceof ServerPlayer player) {
                 // Attach Origin Data for Longest Shot calculation later
                 if (Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) {
@@ -83,19 +101,9 @@ public class ContextEvents {
 
                 if (!Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) return;
 
-                ItemStack activeItem = ItemStack.EMPTY;
-                if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
-                    activeItem = projectile.getData(ModDataAttachments.SOURCE_STACK);
-                }
-                if (activeItem.isEmpty()) {
-                    activeItem = player.getUseItem();
-                    if (activeItem.isEmpty()) activeItem = player.getMainHandItem();
-                }
-
-                if (ItemContextHelper.isRangedWeapon(activeItem)) {
-                    if (isItemInInventory(player, activeItem)) {
-                        MementoAPI.incrementStat(player, activeItem, ModStats.SHOTS_FIRED, 1);
-                    }
+                // Use the resolved weapon (either from data or inferred above)
+                if (!weapon.isEmpty() && isItemInInventory(player, weapon)) {
+                    MementoAPI.incrementStat(player, weapon, ModStats.SHOTS_FIRED, 1);
                 }
             }
         }
@@ -121,7 +129,7 @@ public class ContextEvents {
                 held = projectile.getData(ModDataAttachments.SOURCE_STACK);
             }
 
-            // Fallback logic (Old heuristic)
+            // Fallback logic (Old heuristic) - likely unnecessary now due to onEntityJoin improvement, but kept for safety
             if (held.isEmpty()) {
                 held = player.getMainHandItem();
                 if (!ItemContextHelper.isRangedWeapon(held)) {
@@ -208,6 +216,8 @@ public class ContextEvents {
         if (!Config.isDefaultEnabled(ModStats.BLOCKS_BROKEN)) return;
 
         if (event.getPlayer() instanceof ServerPlayer player) {
+            if (event.getState().is(ModTags.STAT_BLACKLIST_BLOCKS)) return;
+
             ItemStack heldItem = player.getMainHandItem();
             BlockState state = event.getState();
 
