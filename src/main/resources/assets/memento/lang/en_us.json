@@ -29,7 +29,7 @@
   "stat.memento.fires_started": "Fires Started",
   "stat.memento.items_caught": "Items Caught",
   "stat.memento.longest_shot": "Longest Shot",
-  "stat.memento.shots_fired": "Shots Fired",
+  "stat.memento.shots_fired": "Shots Landed",
 
   "item.memento.memento_crystal": "Memento Crystal",
   "item.memento.memento_crystal.empty": "Empty (Combine with Tool to Siphon)",

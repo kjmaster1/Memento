@@ -24,7 +24,7 @@ public class StatAttributeManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatAttributeManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_attributes");
+        super(GSON, "memento/stat_attributes");
         this.registries = registries;
     }
 

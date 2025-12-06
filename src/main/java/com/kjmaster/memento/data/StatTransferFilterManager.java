@@ -28,7 +28,7 @@ public class StatTransferFilterManager extends SimpleJsonResourceReloadListener 
     private final HolderLookup.Provider registries;
 
     public StatTransferFilterManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_transfer_filters");
+        super(GSON, "memento/stat_transfer_filters");
         this.registries = registries;
     }
 

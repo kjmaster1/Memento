@@ -28,7 +28,7 @@ public class StatVisualPrestigeManager extends SimpleJsonResourceReloadListener 
     private final HolderLookup.Provider registries;
 
     public StatVisualPrestigeManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_visual_prestige");
+        super(GSON, "memento/stat_visual_prestige");
         this.registries = registries;
     }
 

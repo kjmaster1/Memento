@@ -27,7 +27,7 @@ public class StatUsageSpeedManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatUsageSpeedManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_usage_speeds");
+        super(GSON, "memento/stat_usage_speeds");
         this.registries = registries;
     }
 

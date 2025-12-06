@@ -24,7 +24,7 @@ public class StatEnchantmentManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatEnchantmentManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_enchantments");
+        super(GSON, "memento/stat_enchantments");
         this.registries = registries;
     }
 

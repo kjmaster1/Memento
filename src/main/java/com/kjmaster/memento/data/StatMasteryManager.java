@@ -28,7 +28,7 @@ public class StatMasteryManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatMasteryManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_mastery");
+        super(GSON, "memento/stat_mastery");
         this.registries = registries;
     }
 

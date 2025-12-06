@@ -28,7 +28,7 @@ public class StatEffectManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatEffectManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_effects");
+        super(GSON, "memento/stat_effects");
         this.registries = registries;
     }
 

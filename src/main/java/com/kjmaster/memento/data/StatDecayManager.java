@@ -28,7 +28,7 @@ public class StatDecayManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatDecayManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_decay");
+        super(GSON, "memento/stat_decay");
         this.registries = registries;
     }
 

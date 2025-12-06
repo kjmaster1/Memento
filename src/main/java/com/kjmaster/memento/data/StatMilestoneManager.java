@@ -24,7 +24,7 @@ public class StatMilestoneManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatMilestoneManager(HolderLookup.Provider registries) {
-        super(GSON, "milestones");
+        super(GSON, "memento/milestones");
         this.registries = registries;
     }
 

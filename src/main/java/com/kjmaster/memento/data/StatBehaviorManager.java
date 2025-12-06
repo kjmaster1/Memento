@@ -19,7 +19,7 @@ public class StatBehaviorManager extends SimpleJsonResourceReloadListener {
     private static final Map<ResourceLocation, StatBehavior.MergeStrategy> STRATEGIES = new HashMap<>();
 
     public StatBehaviorManager() {
-        super(GSON, "stat_behaviors");
+        super(GSON, "memento/stat_behaviors");
     }
 
     @Override

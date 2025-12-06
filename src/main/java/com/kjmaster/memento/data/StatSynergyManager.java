@@ -23,7 +23,7 @@ public class StatSynergyManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatSynergyManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_synergies");
+        super(GSON, "memento/stat_synergies");
         this.registries = registries;
     }
 

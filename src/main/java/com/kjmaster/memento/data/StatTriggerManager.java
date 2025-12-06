@@ -29,7 +29,7 @@ public class StatTriggerManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatTriggerManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_triggers");
+        super(GSON, "memento/stat_triggers");
         this.registries = registries;
     }
 

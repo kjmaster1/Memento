@@ -24,7 +24,7 @@ public class StatEchoManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatEchoManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_echoes");
+        super(GSON, "memento/stat_echoes");
         this.registries = registries;
     }
 

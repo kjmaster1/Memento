@@ -14,6 +14,7 @@ import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
@@ -92,58 +93,57 @@ public class ContextEvents {
                 projectile.setData(ModDataAttachments.BALLISTICS_APPLIED, true);
             }
 
-            // 3. STAT TRACKING (Shots Fired)
             if (projectile.getOwner() instanceof ServerPlayer player) {
                 // Attach Origin Data for Longest Shot calculation later
                 if (Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) {
                     projectile.setData(ModDataAttachments.PROJECTILE_ORIGIN, projectile.position());
                 }
-
-                if (!Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) return;
-
-                // Use the resolved weapon (either from data or inferred above)
-                if (!weapon.isEmpty() && isItemInInventory(player, weapon)) {
-                    MementoAPI.incrementStat(player, weapon, ModStats.SHOTS_FIRED, 1);
-                }
+                // NOTE: SHOTS_FIRED logic removed from here to prevent farming. Moved to Impact.
             }
         }
     }
 
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
-
-        if (!Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) return;
-
         Projectile projectile = event.getProjectile();
-        if (!projectile.level().isClientSide && projectile.getOwner() instanceof ServerPlayer player) {
-            // Calculate Distance
+        if (projectile.level().isClientSide || !(projectile.getOwner() instanceof ServerPlayer player)) return;
+
+        // Only process stats if we hit an ENTITY.
+        // This prevents farming Longest Shot by shooting the air/ground,
+        // and prevents farming Shots Fired by spamming/picking up arrows.
+        if (event.getRayTraceResult().getType() != HitResult.Type.ENTITY) return;
+
+        // Retrieve the Attached Weapon
+        ItemStack held = ItemStack.EMPTY;
+        if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
+            held = projectile.getData(ModDataAttachments.SOURCE_STACK);
+        }
+
+        // Fallback logic
+        if (held.isEmpty()) {
+            held = player.getMainHandItem();
+            if (!ItemContextHelper.isRangedWeapon(held)) {
+                held = player.getOffhandItem();
+            }
+        }
+
+        // Validation: Item must still be in inventory (prevent ghost updates)
+        if (!ItemContextHelper.isRangedWeapon(held)) return;
+        if (!isItemInInventory(player, held)) return;
+
+        // 1. LONGEST SHOT (Max Distance)
+        if (Config.isDefaultEnabled(ModStats.LONGEST_SHOT)) {
             Vec3 origin = projectile.getData(ModDataAttachments.PROJECTILE_ORIGIN);
-            if (origin.equals(Vec3.ZERO)) return; // No data attached
-
-            double distance = origin.distanceTo(projectile.position());
-            long distanceCm = (long) (distance * 100);
-
-            // Use the Attached Weapon for context
-            ItemStack held = ItemStack.EMPTY;
-            if (projectile.hasData(ModDataAttachments.SOURCE_STACK)) {
-                held = projectile.getData(ModDataAttachments.SOURCE_STACK);
+            if (!origin.equals(Vec3.ZERO)) {
+                double distance = origin.distanceTo(projectile.position());
+                long distanceCm = (long) (distance * 100);
+                MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
             }
+        }
 
-            // Fallback logic (Old heuristic) - likely unnecessary now due to onEntityJoin improvement, but kept for safety
-            if (held.isEmpty()) {
-                held = player.getMainHandItem();
-                if (!ItemContextHelper.isRangedWeapon(held)) {
-                    held = player.getOffhandItem();
-                }
-            }
-
-            if (ItemContextHelper.isRangedWeapon(held)) {
-                // VALIDATION: Critical check to ensure we don't update a "ghost" item reference
-                // if the player has dropped, destroyed, or split the stack since firing.
-                if (isItemInInventory(player, held)) {
-                    MementoAPI.maximizeStat(player, held, ModStats.LONGEST_SHOT, distanceCm);
-                }
-            }
+        // 2. SHOTS FIRED (Now counts as "Shots Landed")
+        if (Config.isDefaultEnabled(ModStats.SHOTS_FIRED)) {
+            MementoAPI.incrementStat(player, held, ModStats.SHOTS_FIRED, 1);
         }
     }
 

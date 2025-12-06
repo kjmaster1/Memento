@@ -24,7 +24,7 @@ public class StatLoreManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatLoreManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_lore");
+        super(GSON, "memento/stat_lore");
         this.registries = registries;
     }
 

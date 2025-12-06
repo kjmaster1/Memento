@@ -28,7 +28,7 @@ public class StatRepairCapManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatRepairCapManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_repair_caps");
+        super(GSON, "memento/stat_repair_caps");
         this.registries = registries;
     }
 

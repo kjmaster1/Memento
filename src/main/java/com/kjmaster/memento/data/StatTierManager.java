@@ -28,7 +28,7 @@ public class StatTierManager extends SimpleJsonResourceReloadListener {
     private final HolderLookup.Provider registries;
 
     public StatTierManager(HolderLookup.Provider registries) {
-        super(GSON, "stat_tiers");
+        super(GSON, "memento/stat_tiers");
         this.registries = registries;
     }
 

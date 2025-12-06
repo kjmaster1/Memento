@@ -20,7 +20,7 @@ public class StatDefinitionManager extends SimpleJsonResourceReloadListener {
     private static final Map<ResourceLocation, StatDefinition> DEFINITIONS = new HashMap<>();
 
     public StatDefinitionManager() {
-        super(GSON, "stat_definitions");
+        super(GSON, "memento/stat_definitions");
     }
 
     @Override
