@@ -1,4 +1,14 @@
 {
+  "memento.configuration.title": "Memento",
+  "memento.configuration.visual_stats.button": "Edit",
+  "memento.configuration.section.memento.common.toml": "Memento Common Configuration",
+  "memento.configuration.disabled_default_stats.button": "Edit",
+  "memento.configuration.visual_stats.tooltip": "List of Stat IDs to expose as Item Properties for Resource Packs.\nThis allows you to change item textures based on stat values using 'overrides' in model JSONs.\nDefault Memento stats are included automatically.",
+  "memento.configuration.disabled_default_stats.tooltip": "List of Memento Stat IDs to disable default tracking logic for.\nUse this if you want to replace the default logic with your own JSON triggers.\n Example: [\"memento:blocks_broken\"]",
+  "memento.configuration.section.memento.common.toml.title": "Memento Common Configuration",
+  "memento.configuration.disabled_default_stats": "Disabled Default Stats",
+  "memento.configuration.visual_stats": "Visual Stats",
+
   "tooltip.memento.header": "--- Memento History ---",
   "tooltip.memento.hold_shift": "Hold [Shift] for History",
   "tooltip.memento.hold_ctrl_shift": "Hold [Ctrl+Shift] for All (+%s more)",
